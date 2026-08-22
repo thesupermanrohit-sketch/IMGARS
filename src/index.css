@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-bg-primary: #0a0a0a;
+  --color-bg-surface: #111111;
+  --color-border-subtle: #1f1f1f;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #666666;
+}
+
+/* Custom scrollbars matching brutalist style */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1f1f1f;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333333;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #0a0a0a;
+  color: #ffffff;
+}
+
+/* Input styles for brutalist look */
+input[type="number"], select {
+  background-color: #111111;
+  border: 1px solid #1f1f1f;
+  color: #ffffff;
+  border-radius: 0px;
+}
+
+input[type="number"]:focus, select:focus {
+  outline: none;
+  border-color: #ffffff;
+}
+
+/* Strip spinner arrows from the inline custom-dimension input */
+#max-dimension-custom-input::-webkit-inner-spin-button,
+#max-dimension-custom-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
