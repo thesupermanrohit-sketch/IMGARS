@@ -15,6 +15,8 @@ function App() {
       setActiveTab('convert');
     } else if (location.pathname === '/image-to-pdf') {
       setActiveTab('imagePdf');
+    } else if (location.pathname === '/increase-size') {
+      setActiveTab('increaseSize');
     } else {
       setActiveTab('compress');
     }
@@ -34,18 +36,23 @@ function App() {
           <h2 className="text-sm font-medium text-white tracking-wide">
             {activeTab === 'compress'
               ? 'Compress'
-              : activeTab === 'convert'
-                ? 'Convert'
-                : 'Image to PDF'}
+              : activeTab === 'increaseSize'
+                ? 'Increase Size'
+                : activeTab === 'convert'
+                  ? 'Convert'
+                  : 'Image to PDF'}
           </h2>
           <p className="text-xs text-[#666666] leading-relaxed">
             {activeTab === 'compress'
               ? 'Image too big to upload somewhere? Drop it here, set a size limit, done.'
-              : activeTab === 'convert'
-                ? 'Change your image from one format to another. Pick what you need, download.'
-                : 'Turn your images into a PDF. Drag to reorder, then download.'}
+              : activeTab === 'increaseSize'
+                ? 'Need a larger file size for upload requirements? Set your target size and increase it instantly.'
+                : activeTab === 'convert'
+                  ? 'Change your image from one format to another. Pick what you need, download.'
+                  : 'Turn your images into a PDF. Drag to reorder, then download.'}
           </p>
         </div>
+
 
         {activeTab === 'imagePdf' ? (
           <ImagePdfPanel />

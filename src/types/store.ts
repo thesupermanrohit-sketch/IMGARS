@@ -19,6 +19,7 @@ export interface FileItem {
   previewUrl?: string;
   status: 'pending' | 'processing' | 'done' | 'failed';
   error?: string;
+  skipReason?: string;
   targetSizeKb?: number;
   outputFormat?: OutputFormat;
   dimensionPreset?: DimensionPreset;
@@ -50,6 +51,11 @@ export interface CompressSlice {
   setCompressResolutionPreset: (preset: CompressResolutionPreset) => void;
 }
 
+export interface IncreaseSizeSlice {
+  increaseSizeTargetSizeKb: number;
+  setIncreaseSizeTargetSizeKb: (targetSizeKb: number) => void;
+}
+
 export interface ConvertSlice {
   globalConvertFormat: OutputFormat;
   setGlobalConvertFormat: (format: OutputFormat) => void;
@@ -76,4 +82,10 @@ export interface ImagePdfSlice {
   setImagePdfError: (error?: string) => void;
 }
 
-export type ForgeState = NavigationSlice & QueueSlice & CompressSlice & ConvertSlice & ImagePdfSlice;
+export type ForgeState = NavigationSlice &
+  QueueSlice &
+  CompressSlice &
+  IncreaseSizeSlice &
+  ConvertSlice &
+  ImagePdfSlice;
+

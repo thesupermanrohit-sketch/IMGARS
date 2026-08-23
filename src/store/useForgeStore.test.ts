@@ -10,6 +10,7 @@ describe('useForgeStore', () => {
       globalConvertFormat: 'webp',
       compressTargetSizeKb: 100,
       compressResolutionPreset: 'web',
+      increaseSizeTargetSizeKb: 500,
     });
   });
 
@@ -20,6 +21,7 @@ describe('useForgeStore', () => {
     expect(state.globalConvertFormat).toBe('webp');
     expect(state.compressTargetSizeKb).toBe(100);
     expect(state.compressResolutionPreset).toBe('web');
+    expect(state.increaseSizeTargetSizeKb).toBe(500);
   });
 
   it('updates activeTab correctly', () => {
@@ -29,12 +31,26 @@ describe('useForgeStore', () => {
 
     setActiveTab('imagePdf');
     expect(useForgeStore.getState().activeTab).toBe('imagePdf');
+
+    setActiveTab('increaseSize');
+    expect(useForgeStore.getState().activeTab).toBe('increaseSize');
+  });
+
+  it('updates increaseSize settings and clamps bounds', () => {
+    const { setIncreaseSizeTargetSizeKb } = useForgeStore.getState();
+    setIncreaseSizeTargetSizeKb(750);
+    expect(useForgeStore.getState().increaseSizeTargetSizeKb).toBe(750);
+
+    // Should clamp lower bound to 1 KB
+    setIncreaseSizeTargetSizeKb(-100);
+    expect(useForgeStore.getState().increaseSizeTargetSizeKb).toBe(1);
   });
 
   it('updates compress settings and clamps bounds', () => {
     const { setCompressTargetSizeKb, setCompressResolutionPreset } = useForgeStore.getState();
     setCompressTargetSizeKb(250);
     expect(useForgeStore.getState().compressTargetSizeKb).toBe(250);
+
 
     // Should clamp lower bound to 1 KB
     setCompressTargetSizeKb(-50);

@@ -111,6 +111,7 @@ export const createQueueSlice: StateCreator<
       }
 
       let processedBlob: Blob;
+      let skipReason: string | undefined;
 
       if (activeTab === 'compress') {
         const { compressImage } = await import('../../features/compress/compressUtil');
@@ -122,6 +123,12 @@ export const createQueueSlice: StateCreator<
         else if (preset === 'fullHd' || (preset as string) === 'hd') maxWidthOrHeight = 1920;
 
         processedBlob = await compressImage(savedData.originalBlob, targetKb, item.name, maxWidthOrHeight);
+      } else if (activeTab === 'increaseSize') {
+        const { increaseImageSize } = await import('../../features/increaseSize/increaseSizeUtil');
+        const targetKb = get().increaseSizeTargetSizeKb || 500;
+        const result = await increaseImageSize(savedData.originalBlob, targetKb, item.type, item.name);
+        processedBlob = result.blob;
+        skipReason = result.skipped ? (result.reason || 'Already meets target size') : undefined;
       } else {
         const { convertImage } = await import('../../features/convert/convertUtil');
         const targetFormat = item.outputFormat || get().globalConvertFormat || 'webp';
@@ -137,6 +144,7 @@ export const createQueueSlice: StateCreator<
                 ...i,
                 status: 'done',
                 processedSize: processedBlob.size,
+                skipReason,
               }
             : i
         ),
@@ -192,6 +200,13 @@ export const createQueueSlice: StateCreator<
       } else {
         fileName = `${fileName}-compressed`;
       }
+    } else if (activeTab === 'increaseSize') {
+      const lastDotIndex = fileName.lastIndexOf('.');
+      if (lastDotIndex !== -1) {
+        fileName = `${fileName.slice(0, lastDotIndex)}-increased${fileName.slice(lastDotIndex)}`;
+      } else {
+        fileName = `${fileName}-increased`;
+      }
     } else {
       const targetFormat = item.outputFormat || 'webp';
       const lastDotIndex = fileName.lastIndexOf('.');
@@ -205,3 +220,4 @@ export const createQueueSlice: StateCreator<
     return { blob: savedData.processedBlob, fileName };
   },
 });
+

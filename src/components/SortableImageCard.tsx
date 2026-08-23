@@ -9,6 +9,7 @@ export interface SortableImageCardProps {
   previewUrl: string;
   subtitle: string;
   error?: string;
+  skipMessage?: string;
   onRemove: (id: string) => void;
   onDownload?: () => void;
 }
@@ -19,6 +20,7 @@ export const SortableImageCard: React.FC<SortableImageCardProps> = ({
   previewUrl,
   subtitle,
   error,
+  skipMessage,
   onRemove,
   onDownload,
 }) => {
@@ -53,9 +55,11 @@ export const SortableImageCard: React.FC<SortableImageCardProps> = ({
             {name}
           </p>
           <p className="text-xs text-[#666666]">{subtitle}</p>
+          {skipMessage && <p className="text-xs text-[#888888] mt-0.5">{skipMessage}</p>}
           {error && <p className="text-xs text-[#ff4444] mt-0.5">{error}</p>}
         </div>
       </div>
+
 
       <div className="col-span-2 sm:col-span-1 flex items-center justify-end gap-4">
         {onDownload && (

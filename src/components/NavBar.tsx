@@ -9,9 +9,11 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Compress', path: '/compress' },
+  { label: 'Increase Size', path: '/increase-size' },
   { label: 'Convert', path: '/convert' },
   { label: 'Image to PDF', path: '/image-to-pdf' },
 ];
+
 
 export const NavBar: React.FC = () => {
   const location = useLocation();

@@ -103,9 +103,12 @@ export const QueueList: React.FC = () => {
     setCompressTargetSizeKb,
     compressResolutionPreset,
     setCompressResolutionPreset,
+    increaseSizeTargetSizeKb,
+    setIncreaseSizeTargetSizeKb,
   } = useForgeStore();
 
   const [customTargetInput, setCustomTargetInput] = useState<string>('');
+  const [customIncreaseTargetInput, setCustomIncreaseTargetInput] = useState<string>('');
   const [supportedFormats, setSupportedFormats] = useState<Record<OutputFormat, boolean>>({
     jpeg: true,
     webp: true,
@@ -113,6 +116,7 @@ export const QueueList: React.FC = () => {
     png: true,
   });
   const sensors = useDndSensors();
+
 
   useEffect(() => {
     let isMounted = true;
@@ -223,6 +227,126 @@ export const QueueList: React.FC = () => {
                   onRemove={removeFile}
                   onDownload={item.status === 'done' ? () => handleDownloadItem(item.id) : undefined}
                 />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      </div>
+    );
+  }
+
+  if (activeTab === 'increaseSize') {
+
+    const increaseSizeOptions: SegmentedControlOption<string>[] = [
+      { value: '100', label: '100 KB' },
+      { value: '250', label: '250 KB' },
+      { value: '500', label: '500 KB' },
+      { value: '1000', label: '1000 KB' },
+    ];
+
+    const currentIncreaseTargetStr =
+      customIncreaseTargetInput === '' ? String(increaseSizeTargetSizeKb) : '';
+
+    const handleIncreaseTargetChange = (valStr: string) => {
+      setIncreaseSizeTargetSizeKb(parseInt(valStr, 10));
+      setCustomIncreaseTargetInput('');
+    };
+
+    return (
+      <div className="flex flex-col gap-5 mt-2">
+        {/* Queue Header */}
+        <div className="flex items-center justify-between gap-4 border-b border-[#1f1f1f] pb-3 flex-wrap">
+          <h2 className="text-sm font-medium text-white tracking-wide">
+            Queue <span className="text-[#666666] font-normal">({queue.length} files)</span>
+          </h2>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={clearQueue}
+              disabled={isProcessingAll}
+              className="text-xs text-[#666666] hover:text-[#ff4444] font-medium transition-colors disabled:opacity-30"
+            >
+              Clear Queue
+            </button>
+
+            <button
+              onClick={processAll}
+              disabled={isProcessingAll || queue.length === 0}
+              className="bg-white text-black px-3 py-1.5 text-xs font-medium rounded-none hover:bg-gray-200 transition-colors disabled:bg-[#1f1f1f] disabled:text-[#666666] disabled:cursor-not-allowed"
+            >
+              {isProcessingAll ? 'Increasing...' : 'Increase Size'}
+            </button>
+          </div>
+        </div>
+
+        {/* Global Controls: Target Size */}
+        <div className="flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
+            <SegmentedControl
+              label="Target Size"
+              options={increaseSizeOptions}
+              value={currentIncreaseTargetStr}
+              onChange={handleIncreaseTargetChange}
+            />
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={customIncreaseTargetInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomIncreaseTargetInput(val);
+                  const num = parseInt(val, 10);
+                  if (!isNaN(num) && num > 0) {
+                    setIncreaseSizeTargetSizeKb(num);
+                  }
+                }}
+                className="w-16 h-7 px-2 text-xs border border-[#1f1f1f] bg-[#111111] text-white rounded-none focus:outline-none focus:border-white"
+              />
+              <span className="text-xs text-[#666666]">KB</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Queue Cards with DndContext */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={queue.map((item) => item.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex flex-col gap-3">
+              {queue.map((item) => (
+                <SortableImageCard
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  previewUrl={item.previewUrl || ''}
+                  subtitle={
+                    item.status === 'done' && item.processedSize !== undefined
+                      ? (() => {
+                          if (item.skipReason) {
+                            return formatBytes(item.originalSize);
+                          }
+                          const origStr = formatBytes(item.originalSize);
+                          const procStr = formatBytes(item.processedSize);
+                          const diff = item.processedSize - item.originalSize;
+                          const pct = Math.round((diff / item.originalSize) * 100);
+                          const pctSign = pct > 0 ? `+${pct}%` : '0%';
+                          return `${origStr} → ${procStr} (${pctSign})`;
+                        })()
+                      : formatBytes(item.originalSize)
+                  }
+                  skipMessage={item.skipReason ? `Skipped: ${item.skipReason}` : undefined}
+                  error={item.status === 'failed' ? item.error : undefined}
+                  onRemove={removeFile}
+                  onDownload={item.status === 'done' ? () => handleDownloadItem(item.id) : undefined}
+                />
+
               ))}
             </div>
           </SortableContext>
