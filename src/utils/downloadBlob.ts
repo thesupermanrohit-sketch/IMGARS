@@ -3,10 +3,14 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
+  link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 1000);
+  
+  requestAnimationFrame(() => {
+    document.body.removeChild(link);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 10000);
+  });
 }

@@ -1,15 +1,43 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
 import { DropZone } from './components/DropZone';
 import { QueueList } from './components/QueueList';
 import { ImagePdfPanel } from './features/imagePdf/ImagePdfPanel';
 import { useForgeStore } from './store/useForgeStore';
 
-function App() {
-  const location = useLocation();
-  const { activeTab, setActiveTab } = useForgeStore();
+interface TabPageProps {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}
 
+function TabPage({ title, description, children }: TabPageProps) {
+  return (
+    <>
+      <div className="flex flex-col gap-1.5 mt-4">
+        <h2 className="text-sm font-medium text-white tracking-wide">{title}</h2>
+        <p className="text-xs text-[#666666] leading-relaxed">{description}</p>
+      </div>
+      {children}
+    </>
+  );
+}
+
+function StandardQueuePage({ title, description }: { title: string; description: string }) {
+  return (
+    <TabPage title={title} description={description}>
+      <DropZone />
+      <QueueList />
+    </TabPage>
+  );
+}
+
+export function App() {
+  const location = useLocation();
+  const setActiveTab = useForgeStore((state) => state.setActiveTab);
+
+  // Sync activeTab for navigation indicators and state slices
   useEffect(() => {
     if (location.pathname === '/convert') {
       setActiveTab('convert');
@@ -22,50 +50,74 @@ function App() {
     }
   }, [location.pathname, setActiveTab]);
 
+  // Object URL lifecycle cleanup on tab close / reload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const { queue, imagePdfItems } = useForgeStore.getState();
+      queue.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      imagePdfItems.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#ffffff] flex flex-col font-sans selection:bg-[#ffffff] selection:text-[#000000]">
-      
       {/* Top Header Navigation */}
       <NavBar />
 
       {/* Main Container */}
       <main className="flex-1 max-w-[720px] w-full mx-auto px-6 py-12 flex flex-col gap-8">
-        
-        {/* Intro */}
-        <div className="flex flex-col gap-1.5 mt-4">
-          <h2 className="text-sm font-medium text-white tracking-wide">
-            {activeTab === 'compress'
-              ? 'Compress'
-              : activeTab === 'increaseSize'
-                ? 'Increase Size'
-                : activeTab === 'convert'
-                  ? 'Convert'
-                  : 'Image to PDF'}
-          </h2>
-          <p className="text-xs text-[#666666] leading-relaxed">
-            {activeTab === 'compress'
-              ? 'Image too big to upload somewhere? Drop it here, set a size limit, done.'
-              : activeTab === 'increaseSize'
-                ? 'Need a larger file size for upload requirements? Set your target size and increase it instantly.'
-                : activeTab === 'convert'
-                  ? 'Change your image from one format to another. Pick what you need, download.'
-                  : 'Turn your images into a PDF. Drag to reorder, then download.'}
-          </p>
-        </div>
-
-
-        {activeTab === 'imagePdf' ? (
-          <ImagePdfPanel />
-        ) : (
-          <>
-            {/* Upload Zone */}
-            <DropZone />
-
-            {/* Queue Rows */}
-            <QueueList />
-          </>
-        )}
-
+        <Routes>
+          <Route path="/" element={<Navigate to="/compress" replace />} />
+          <Route
+            path="/convert"
+            element={
+              <StandardQueuePage
+                title="Convert"
+                description="Change your image from one format to another. Pick what you need, download."
+              />
+            }
+          />
+          <Route
+            path="/compress"
+            element={
+              <StandardQueuePage
+                title="Compress"
+                description="Image too big to upload somewhere? Drop it here, set a size limit, done."
+              />
+            }
+          />
+          <Route
+            path="/increase-size"
+            element={
+              <StandardQueuePage
+                title="Increase Size"
+                description="Need a larger file size for upload requirements? Set your target size and increase it instantly."
+              />
+            }
+          />
+          <Route
+            path="/image-to-pdf"
+            element={
+              <TabPage
+                title="Image to PDF"
+                description="Turn your images into a PDF. Drag to reorder, then download."
+              >
+                <ImagePdfPanel />
+              </TabPage>
+            }
+          />
+          <Route path="*" element={<Navigate to="/compress" replace />} />
+        </Routes>
       </main>
     </div>
   );

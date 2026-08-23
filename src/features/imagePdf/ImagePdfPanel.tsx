@@ -18,10 +18,12 @@ import { useForgeStore } from '../../store/useForgeStore';
 import { formatBytes } from '../../utils/formatBytes';
 import { downloadBlob } from '../../utils/downloadBlob';
 import { createImagePdfWorker } from './imagePdfWorkerClient';
-import type { ImagePdfOrientation, ImagePdfPageSize } from './types';
-
-const IMAGE_PDF_ACCEPT = 'image/jpeg,image/png,image/webp,image/avif';
-const IMAGE_PDF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+import {
+  type ImagePdfOrientation,
+  type ImagePdfPageSize,
+  IMAGE_PDF_ACCEPT,
+  IMAGE_PDF_ACCEPTED_TYPES as IMAGE_PDF_TYPES,
+} from './types';
 const DEFAULT_PDF_NAME = 'imgars-output.pdf';
 
 type SavePickerWindow = Window & {

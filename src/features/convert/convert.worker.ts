@@ -1,12 +1,6 @@
 import { expose } from 'comlink';
 import type { OutputFormat, ConvertWorkerApi } from './types';
-
-const FORMAT_MIME_MAP: Record<OutputFormat, string> = {
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  avif: 'image/avif',
-};
+import { FORMAT_MIME_MAP } from './constants';
 
 async function convertImageInWorker(
   blob: Blob,

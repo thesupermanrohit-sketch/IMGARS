@@ -98,4 +98,31 @@ describe('useForgeStore', () => {
     const newOrder = useForgeStore.getState().queue.map((i) => i.id);
     expect(newOrder).toEqual(['3', '1', '2']);
   });
+
+  it('tags queued items with mode', () => {
+    useForgeStore.setState({
+      queue: [
+        {
+          id: '1',
+          name: 'compress-img.jpg',
+          type: 'image/jpeg',
+          originalSize: 1024,
+          status: 'pending',
+          mode: 'compress',
+        },
+        {
+          id: '2',
+          name: 'increase-img.png',
+          type: 'image/png',
+          originalSize: 2048,
+          status: 'pending',
+          mode: 'increaseSize',
+        },
+      ],
+    });
+
+    const items = useForgeStore.getState().queue;
+    expect(items[0].mode).toBe('compress');
+    expect(items[1].mode).toBe('increaseSize');
+  });
 });

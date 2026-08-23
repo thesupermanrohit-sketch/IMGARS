@@ -9,13 +9,13 @@ interface DropZoneProps {
   onRejectedFiles?: (files: File[]) => void;
 }
 
-export const DropZone: React.FC<DropZoneProps> = ({
+export function DropZone({
   accept = 'image/*',
   prompt = 'Drop images here',
   isAcceptedFile = (file) => file.type.startsWith('image/'),
   onFiles,
   onRejectedFiles,
-}) => {
+}: DropZoneProps) {
   const addFiles = useForgeStore((state) => state.addFiles);
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,12 +109,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
       />
       
       <p className="text-sm text-[#666666] select-none text-center">
-        {prompt}{' '}
+        {prompt} or{' '}
         <span 
           onClick={onButtonClick}
           className="text-[#666666] hover:text-white underline underline-offset-4 transition-colors"
         >
-          or browse files
+          browse files
         </span>
       </p>
     </div>

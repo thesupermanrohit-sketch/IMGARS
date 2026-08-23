@@ -1,3 +1,7 @@
+export const IMAGE_PDF_ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+export const IMAGE_PDF_ACCEPT = Array.from(IMAGE_PDF_ACCEPTED_TYPES).join(',');
+
+
 export type ImagePdfOrientation = 'portrait' | 'landscape';
 export type ImagePdfPageSize = 'a4' | 'match';
 

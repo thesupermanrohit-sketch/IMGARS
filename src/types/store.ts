@@ -8,8 +8,6 @@ import type {
 } from '../features/imagePdf/types';
 import type { Tab } from '../constants/tabs';
 
-export type DimensionPreset = 'web' | 'hd' | 'original' | 'custom';
-
 export interface FileItem {
   id: string;
   name: string;
@@ -20,9 +18,9 @@ export interface FileItem {
   status: 'pending' | 'processing' | 'done' | 'failed';
   error?: string;
   skipReason?: string;
+  mode?: Tab;
   targetSizeKb?: number;
   outputFormat?: OutputFormat;
-  dimensionPreset?: DimensionPreset;
   customDimension?: number;
 }
 

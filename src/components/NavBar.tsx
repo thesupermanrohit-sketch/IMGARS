@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -8,14 +8,14 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { label: 'Convert', path: '/convert' },
   { label: 'Compress', path: '/compress' },
   { label: 'Increase Size', path: '/increase-size' },
-  { label: 'Convert', path: '/convert' },
   { label: 'Image to PDF', path: '/image-to-pdf' },
 ];
 
 
-export const NavBar: React.FC = () => {
+export function NavBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);

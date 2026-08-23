@@ -31,8 +31,10 @@ export async function compressImage(
         ...(maxWidthOrHeight !== undefined ? { maxWidthOrHeight } : {}),
       };
       return await imageCompression(file, fallbackOptions);
-    } catch {
-      throw new Error(`Failed to compress image: ${error instanceof Error ? error.message : String(error)}`);
+    } catch (fallbackError) {
+      const primaryMsg = error instanceof Error ? error.message : String(error);
+      const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      throw new Error(`Failed to compress image: ${primaryMsg} (fallback: ${fallbackMsg})`);
     }
   }
 }

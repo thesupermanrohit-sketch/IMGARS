@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import { IMAGE_PDF_ACCEPTED_TYPES } from '../../features/imagePdf/types';
 import type { ForgeState, ImagePdfSlice } from '../../types/store';
 
 export const createImagePdfSlice: StateCreator<
@@ -17,9 +18,8 @@ export const createImagePdfSlice: StateCreator<
   imagePdfError: undefined,
 
   addImagePdfFiles: (files) => {
-    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
     const newItems = files
-      .filter((file) => allowedTypes.has(file.type))
+      .filter((file) => IMAGE_PDF_ACCEPTED_TYPES.has(file.type))
       .map((file, index) => ({
         id: crypto.randomUUID(),
         file,

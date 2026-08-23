@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Download, GripVertical, X } from 'lucide-react';
@@ -14,7 +13,7 @@ export interface SortableImageCardProps {
   onDownload?: () => void;
 }
 
-export const SortableImageCard: React.FC<SortableImageCardProps> = ({
+export function SortableImageCard({
   id,
   name,
   previewUrl,
@@ -23,17 +22,19 @@ export const SortableImageCard: React.FC<SortableImageCardProps> = ({
   skipMessage,
   onRemove,
   onDownload,
-}) => {
+}: SortableImageCardProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
+    transition,
     isDragging,
   } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
+    transition,
     opacity: isDragging ? 0.55 : 1,
   };
 

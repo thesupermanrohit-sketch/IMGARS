@@ -1,16 +1,10 @@
 import type { OutputFormat } from './types';
+import { FORMAT_MIME_MAP } from './constants';
 import { isFormatSupported, getSupportedFormats } from './formatSupport';
 import { getConvertWorkerApi } from './convertWorkerClient';
 
 export type { OutputFormat };
 export { isFormatSupported, getSupportedFormats };
-
-const FORMAT_MIME_MAP: Record<OutputFormat, string> = {
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  avif: 'image/avif',
-};
 
 async function convertImageMainThread(
   blob: Blob,

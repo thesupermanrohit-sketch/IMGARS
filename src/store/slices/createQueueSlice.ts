@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand';
 import { db } from '../../db/db';
 import type { OutputFormat } from '../../features/convert/types';
-import type { ForgeState, QueueSlice, NavigationSlice, FileItem } from '../../types/store';
+import type { ForgeState, QueueSlice, FileItem } from '../../types/store';
 
 const BATCH_CONCURRENCY = 4;
 
@@ -9,16 +9,14 @@ export const createQueueSlice: StateCreator<
   ForgeState,
   [],
   [],
-  NavigationSlice & QueueSlice
+  QueueSlice
 > = (set, get) => ({
-  activeTab: 'compress',
   queue: [],
   isProcessingAll: false,
 
-  setActiveTab: (tab) => set({ activeTab: tab }),
-
   addFiles: async (files) => {
     const newItems: FileItem[] = [];
+    const currentTab = get().activeTab;
     const defaultFormat: OutputFormat = get().globalConvertFormat || 'webp';
 
     for (const file of files) {
@@ -36,7 +34,8 @@ export const createQueueSlice: StateCreator<
         originalSize: file.size,
         previewUrl: URL.createObjectURL(file),
         status: 'pending',
-        ...(get().activeTab === 'convert' ? { outputFormat: defaultFormat } : {}),
+        mode: currentTab,
+        ...(currentTab === 'convert' ? { outputFormat: defaultFormat } : {}),
       });
     }
 
@@ -112,8 +111,9 @@ export const createQueueSlice: StateCreator<
 
       let processedBlob: Blob;
       let skipReason: string | undefined;
+      const targetMode = item.mode || activeTab;
 
-      if (activeTab === 'compress') {
+      if (targetMode === 'compress') {
         const { compressImage } = await import('../../features/compress/compressUtil');
         const targetKb = get().compressTargetSizeKb || 100;
 
@@ -123,7 +123,7 @@ export const createQueueSlice: StateCreator<
         else if (preset === 'fullHd' || (preset as string) === 'hd') maxWidthOrHeight = 1920;
 
         processedBlob = await compressImage(savedData.originalBlob, targetKb, item.name, maxWidthOrHeight);
-      } else if (activeTab === 'increaseSize') {
+      } else if (targetMode === 'increaseSize') {
         const { increaseImageSize } = await import('../../features/increaseSize/increaseSizeUtil');
         const targetKb = get().increaseSizeTargetSizeKb || 500;
         const result = await increaseImageSize(savedData.originalBlob, targetKb, item.type, item.name);
@@ -192,15 +192,16 @@ export const createQueueSlice: StateCreator<
 
     let fileName = item.name;
     const { activeTab } = get();
+    const itemMode = item.mode || activeTab;
 
-    if (activeTab === 'compress') {
+    if (itemMode === 'compress') {
       const lastDotIndex = fileName.lastIndexOf('.');
       if (lastDotIndex !== -1) {
         fileName = `${fileName.slice(0, lastDotIndex)}-compressed${fileName.slice(lastDotIndex)}`;
       } else {
         fileName = `${fileName}-compressed`;
       }
-    } else if (activeTab === 'increaseSize') {
+    } else if (itemMode === 'increaseSize') {
       const lastDotIndex = fileName.lastIndexOf('.');
       if (lastDotIndex !== -1) {
         fileName = `${fileName.slice(0, lastDotIndex)}-increased${fileName.slice(lastDotIndex)}`;
