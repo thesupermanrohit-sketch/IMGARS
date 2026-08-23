@@ -1,5 +1,9 @@
 import type { OutputFormat } from './types';
+import { isFormatSupported, getSupportedFormats } from './formatSupport';
+import { getConvertWorkerApi } from './convertWorkerClient';
+
 export type { OutputFormat };
+export { isFormatSupported, getSupportedFormats };
 
 const FORMAT_MIME_MAP: Record<OutputFormat, string> = {
   jpeg: 'image/jpeg',
@@ -8,7 +12,7 @@ const FORMAT_MIME_MAP: Record<OutputFormat, string> = {
   avif: 'image/avif',
 };
 
-export async function convertImage(
+async function convertImageMainThread(
   blob: Blob,
   targetFormat: OutputFormat,
   quality = 0.9
@@ -66,21 +70,19 @@ export async function convertImage(
   }
 }
 
-/**
- * Checks if the browser supports canvas export to a specific MIME type
- */
-export async function isFormatSupported(format: OutputFormat): Promise<boolean> {
-  const mime = FORMAT_MIME_MAP[format];
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 1;
-    return new Promise<boolean>((resolve) => {
-      canvas.toBlob((b) => {
-        resolve(b !== null && b.type === mime);
-      }, mime);
-    });
-  } catch {
-    return false;
+export async function convertImage(
+  blob: Blob,
+  targetFormat: OutputFormat,
+  quality = 0.9
+): Promise<Blob> {
+  const workerApi = getConvertWorkerApi();
+  if (workerApi) {
+    try {
+      return await workerApi.convertImageInWorker(blob, targetFormat, quality);
+    } catch (err) {
+      console.warn('Worker conversion failed, falling back to main thread canvas:', err);
+    }
   }
+
+  return convertImageMainThread(blob, targetFormat, quality);
 }

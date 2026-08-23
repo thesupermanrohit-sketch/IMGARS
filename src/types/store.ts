@@ -1,5 +1,5 @@
 import type { OutputFormat } from '../features/convert/types';
-import type { CompressionResultItem, CompressResolutionPreset } from '../features/compress/types';
+import type { CompressResolutionPreset } from '../features/compress/types';
 import type {
   ImagePdfItem,
   ImagePdfOrientation,
@@ -40,21 +40,14 @@ export interface QueueSlice {
   updateFileConfig: (id: string, updates: Partial<FileItem>) => void;
   processFile: (id: string) => Promise<void>;
   processAll: () => Promise<void>;
-  getDownloadUrl: (id: string) => Promise<{ url: string; fileName: string } | null>;
+  getDownloadItem: (id: string) => Promise<{ blob: Blob; fileName: string } | null>;
 }
 
 export interface CompressSlice {
   compressTargetSizeKb: number;
   compressResolutionPreset: CompressResolutionPreset;
-  compressIsProcessing: boolean;
-  compressProgress: string;
-  compressError?: string;
-  compressResults: CompressionResultItem[];
-  compressReady: boolean;
   setCompressTargetSizeKb: (targetSizeKb: number) => void;
   setCompressResolutionPreset: (preset: CompressResolutionPreset) => void;
-  resetCompressWorkflow: () => Promise<void>;
-  processCompressionBatch: () => Promise<void>;
 }
 
 export interface ConvertSlice {

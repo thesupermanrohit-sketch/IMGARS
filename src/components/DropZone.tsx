@@ -73,14 +73,25 @@ export const DropZone: React.FC<DropZoneProps> = ({
     fileInputRef.current?.click();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInputRef.current?.click();
+    }
+  };
+
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Upload images drop zone"
+      onKeyDown={handleKeyDown}
       onDragEnter={handleDrag}
       onDragOver={handleDrag}
       onDragLeave={handleDrag}
       onDrop={handleDrop}
       onClick={() => fileInputRef.current?.click()}
-      className={`w-full py-16 px-6 border border-dashed rounded-none flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 bg-[#111111]/10
+      className={`w-full py-16 px-6 border border-dashed rounded-none flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 bg-[#111111]/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:border-white
         ${
           isDragActive
             ? 'border-white bg-[#111111]/40'

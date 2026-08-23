@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface NavItem {
   label: string;
@@ -99,7 +100,7 @@ export const NavBar: React.FC = () => {
             className="text-xs font-medium tracking-wide text-white hover:text-white transition-colors cursor-pointer py-1 select-none flex items-center gap-1.5"
           >
             <span>{activeItem.label}</span>
-            <span>{isOpen ? '▴' : '▾'}</span>
+            {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
           {isOpen && (

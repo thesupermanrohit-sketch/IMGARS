@@ -62,16 +62,18 @@ export const SortableImageCard: React.FC<SortableImageCardProps> = ({
           <button
             type="button"
             title="Download"
+            aria-label={`Download ${name}`}
             onClick={onDownload}
-            className="text-[#666666] hover:text-white transition-colors"
+            className="text-[#666666] hover:text-white transition-colors focus-visible:outline-none focus-visible:text-white p-0.5"
           >
             <Download className="w-4 h-4" />
           </button>
         )}
         <button
           type="button"
-          title="Drag"
-          className="text-[#666666] hover:text-white cursor-grab touch-none"
+          title="Drag to reorder"
+          aria-label={`Drag to reorder ${name}`}
+          className="text-[#666666] hover:text-white cursor-grab touch-none focus-visible:outline-none focus-visible:text-white p-0.5"
           {...attributes}
           {...listeners}
         >
@@ -80,8 +82,9 @@ export const SortableImageCard: React.FC<SortableImageCardProps> = ({
         <button
           type="button"
           title="Remove"
+          aria-label={`Remove ${name} from queue`}
           onClick={() => onRemove(id)}
-          className="text-[#ff4444] hover:text-white"
+          className="text-[#ff4444] hover:text-white transition-colors focus-visible:outline-none focus-visible:text-white p-0.5"
         >
           <X className="w-4 h-4" />
         </button>

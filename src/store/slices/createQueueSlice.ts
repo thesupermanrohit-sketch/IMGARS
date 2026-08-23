@@ -42,8 +42,6 @@ export const createQueueSlice: StateCreator<
 
     set((state) => ({
       queue: [...state.queue, ...newItems],
-      compressReady: false,
-      compressError: undefined,
     }));
   },
 
@@ -59,11 +57,15 @@ export const createQueueSlice: StateCreator<
   },
 
   clearQueue: async () => {
-    get().queue.forEach((item) => {
+    const queue = get().queue;
+    const ids = queue.map((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return item.id;
     });
 
-    await db.clearAll();
+    if (ids.length > 0) {
+      await db.deleteImages(ids);
+    }
     set({ queue: [] });
   },
 
@@ -173,7 +175,7 @@ export const createQueueSlice: StateCreator<
     }
   },
 
-  getDownloadUrl: async (id) => {
+  getDownloadItem: async (id) => {
     const savedData = await db.images.get(id);
     if (!savedData || !savedData.processedBlob) return null;
 
@@ -200,7 +202,6 @@ export const createQueueSlice: StateCreator<
       }
     }
 
-    const url = URL.createObjectURL(savedData.processedBlob);
-    return { url, fileName };
+    return { blob: savedData.processedBlob, fileName };
   },
 });

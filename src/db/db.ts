@@ -16,7 +16,13 @@ export class ImgarsDatabase extends Dexie {
     });
   }
 
-  // Helper method to clear everything on startup or reset
+  // Helper method to clear specific items by IDs
+  async deleteImages(ids: string[]) {
+    if (ids.length === 0) return;
+    await this.images.bulkDelete(ids);
+  }
+
+  // Helper method to clear everything on reset
   async clearAll() {
     await this.images.clear();
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   closestCenter,
   DndContext,
@@ -11,6 +11,7 @@ import {
 import { Info } from 'lucide-react';
 import { useForgeStore } from '../store/useForgeStore';
 import type { OutputFormat } from '../features/convert/types';
+import { getSupportedFormats } from '../features/convert/formatSupport';
 import type { CompressResolutionPreset } from '../features/compress/types';
 import { formatBytes } from '../utils/formatBytes';
 import { downloadBlob } from '../utils/downloadBlob';
@@ -57,8 +58,7 @@ function DimensionInfoTooltip() {
 
       {isOpen && (
         <div
-          className="absolute bottom-full mb-2.5 left-1/2 -translate-x-1/2 p-3 bg-[#161616] border border-[#2a2a2a] rounded-md shadow-xl text-left text-xs z-50 pointer-events-none"
-          style={{ width: '270px' }}
+          className="absolute bottom-full mb-2.5 left-0 sm:left-1/2 sm:-translate-x-1/2 p-3 bg-[#161616] border border-[#2a2a2a] rounded-md shadow-xl text-left text-xs z-50 pointer-events-none w-[260px] sm:w-[270px] max-w-[calc(100vw-3rem)]"
         >
           <div className="flex flex-col gap-1.5 text-[11px]">
             <p className="text-[#999999] leading-snug">
@@ -68,7 +68,7 @@ function DimensionInfoTooltip() {
               <span className="text-white font-medium">• HD</span> — 1920 px (recommended for higher-quality viewing)
             </p>
           </div>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-4 border-transparent border-t-[#2a2a2a]" />
+          <div className="absolute top-full left-2 sm:left-1/2 sm:-translate-x-1/2 -mt-[1px] border-4 border-transparent border-t-[#2a2a2a]" />
         </div>
       )}
     </span>
@@ -96,7 +96,7 @@ export const QueueList: React.FC = () => {
     clearQueue,
     removeFile,
     reorderQueue,
-    getDownloadUrl,
+    getDownloadItem,
     globalConvertFormat,
     setGlobalConvertFormat,
     compressTargetSizeKb,
@@ -106,7 +106,38 @@ export const QueueList: React.FC = () => {
   } = useForgeStore();
 
   const [customTargetInput, setCustomTargetInput] = useState<string>('');
+  const [supportedFormats, setSupportedFormats] = useState<Record<OutputFormat, boolean>>({
+    jpeg: true,
+    webp: true,
+    avif: true,
+    png: true,
+  });
   const sensors = useDndSensors();
+
+  useEffect(() => {
+    let isMounted = true;
+    getSupportedFormats().then((supportMap) => {
+      if (!isMounted) return;
+      setSupportedFormats(supportMap);
+
+      // If current global format is unsupported, fall back to WebP, JPEG or PNG
+      if (!supportMap[globalConvertFormat]) {
+        const fallback = (['webp', 'jpeg', 'png'] as OutputFormat[]).find((fmt) => supportMap[fmt]) || 'jpeg';
+        setGlobalConvertFormat(fallback);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [globalConvertFormat, setGlobalConvertFormat]);
+
+  const computedFormatOptions = useMemo(() => {
+    return formatOptions.map((opt) => ({
+      ...opt,
+      disabled: !supportedFormats[opt.value],
+      title: !supportedFormats[opt.value] ? `${opt.label} is not supported for canvas export in this browser` : undefined,
+    }));
+  }, [supportedFormats]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -115,16 +146,9 @@ export const QueueList: React.FC = () => {
   };
 
   const handleDownloadItem = async (id: string) => {
-    const downloadInfo = await getDownloadUrl(id);
+    const downloadInfo = await getDownloadItem(id);
     if (downloadInfo) {
-      const savedData = await useForgeStore.getState().getDownloadUrl(id);
-      if (!savedData) return;
-      // Fetch blob from db and call downloadBlob
-      const { db } = await import('../db/db');
-      const img = await db.images.get(id);
-      if (img?.processedBlob) {
-        downloadBlob(img.processedBlob, downloadInfo.fileName);
-      }
+      downloadBlob(downloadInfo.blob, downloadInfo.fileName);
     }
   };
 
@@ -161,7 +185,7 @@ export const QueueList: React.FC = () => {
         {/* Global Format Selector */}
         <SegmentedControl
           label="Format"
-          options={formatOptions}
+          options={computedFormatOptions}
           value={globalConvertFormat}
           onChange={setGlobalConvertFormat}
         />
