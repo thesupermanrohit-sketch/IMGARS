@@ -63,9 +63,11 @@ export function DropZone({
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      await processUploadedFiles(e.target.files);
+    const files = e.target.files;
+    if (files) {
+      await processUploadedFiles(files);
     }
+    e.target.value = '';
   };
 
   const onButtonClick = (e: React.MouseEvent) => {

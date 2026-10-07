@@ -26,7 +26,7 @@ export async function compressImage(
     // If the compression fails or cannot meet the constraints, try a fallback with minimal constraints
     try {
       const fallbackOptions: Parameters<typeof imageCompression>[1] = {
-        maxSizeMB: Math.max(maxSizeMB * 1.5, 1),
+        maxSizeMB: maxSizeMB * 1.5,
         useWebWorker: true,
         ...(maxWidthOrHeight !== undefined ? { maxWidthOrHeight } : {}),
       };

@@ -104,12 +104,14 @@ describe('increaseSizeUtil', () => {
       expect(result.blob.size).toBe(50 * 1024);
       expect(result.blob.type).toBe('image/jpeg');
 
-      // Verify JPEG SOI and COM marker
+      // Verify JPEG SOI, preserved JFIF APP0, and COM marker
       const buf = new Uint8Array(await result.blob.arrayBuffer());
       expect(buf[0]).toBe(0xff);
       expect(buf[1]).toBe(0xd8); // SOI
       expect(buf[2]).toBe(0xff);
-      expect(buf[3]).toBe(0xfe); // COM
+      expect(buf[3]).toBe(0xe0); // APP0 preserved at offset 2
+      expect(buf[20]).toBe(0xff);
+      expect(buf[21]).toBe(0xfe); // COM marker placed after APP0
     });
   });
 
@@ -131,6 +133,22 @@ describe('increaseSizeUtil', () => {
       expect(buf[1]).toBe(0x50);
       expect(buf[2]).toBe(0x4e);
       expect(buf[3]).toBe(0x47);
+
+      // Verify that tEXt chunk text padding does not contain null bytes (0x00) per PNG spec
+      // tEXt starts after IHDR and IDAT, before IEND
+      // Search for 'tEXt'
+      let textChunkPos = -1;
+      for (let i = 8; i < buf.length - 12; i++) {
+        if (buf[i] === 0x74 && buf[i + 1] === 0x45 && buf[i + 2] === 0x58 && buf[i + 3] === 0x74) {
+          textChunkPos = i;
+          break;
+        }
+      }
+      expect(textChunkPos).toBeGreaterThan(0);
+      // Keyword is 'Comment' (7 bytes) + 1 null separator
+      const textStart = textChunkPos + 4 + 7 + 1;
+      // All text padding bytes must be ASCII spaces (0x20), not 0x00
+      expect(buf[textStart]).toBe(0x20);
 
       // Verify last 12 bytes is IEND
       const iend = buf.subarray(buf.length - 12);

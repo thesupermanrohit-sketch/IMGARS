@@ -19,10 +19,11 @@ export const createQueueSlice: StateCreator<
     const currentTab = get().activeTab;
     const defaultFormat: OutputFormat = get().globalConvertFormat || 'webp';
 
+    const dbRecords: { id: string; originalBlob: Blob }[] = [];
+
     for (const file of files) {
       const id = crypto.randomUUID();
-
-      await db.images.put({
+      dbRecords.push({
         id,
         originalBlob: file,
       });
@@ -37,6 +38,10 @@ export const createQueueSlice: StateCreator<
         mode: currentTab,
         ...(currentTab === 'convert' ? { outputFormat: defaultFormat } : {}),
       });
+    }
+
+    if (dbRecords.length > 0) {
+      await db.images.bulkPut(dbRecords);
     }
 
     set((state) => ({
@@ -111,7 +116,7 @@ export const createQueueSlice: StateCreator<
 
       let processedBlob: Blob;
       let skipReason: string | undefined;
-      const targetMode = item.mode || activeTab;
+      const targetMode = activeTab === 'imagePdf' ? (item.mode || 'convert') : (activeTab || item.mode);
 
       if (targetMode === 'compress') {
         const { compressImage } = await import('../../features/compress/compressUtil');
@@ -192,7 +197,7 @@ export const createQueueSlice: StateCreator<
 
     let fileName = item.name;
     const { activeTab } = get();
-    const itemMode = item.mode || activeTab;
+    const itemMode = activeTab === 'imagePdf' ? (item.mode || 'convert') : (activeTab || item.mode);
 
     if (itemMode === 'compress') {
       const lastDotIndex = fileName.lastIndexOf('.');

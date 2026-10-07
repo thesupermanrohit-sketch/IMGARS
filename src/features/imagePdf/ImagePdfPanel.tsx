@@ -42,29 +42,32 @@ function normalizePdfName(fileName: string) {
   return safeName.toLowerCase().endsWith('.pdf') ? safeName : `${safeName}.pdf`;
 }
 
-async function savePdf(blob: Blob) {
+async function savePdf(blob: Blob, customName = DEFAULT_PDF_NAME) {
+  const safeName = normalizePdfName(customName);
   const pickerWindow = window as SavePickerWindow;
 
   if (pickerWindow.showSaveFilePicker) {
-    const handle = await pickerWindow.showSaveFilePicker({
-      suggestedName: DEFAULT_PDF_NAME,
-      types: [
-        {
-          description: 'PDF',
-          accept: { 'application/pdf': ['.pdf'] },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return;
+    try {
+      const handle = await pickerWindow.showSaveFilePicker({
+        suggestedName: safeName,
+        types: [
+          {
+            description: 'PDF',
+            accept: { 'application/pdf': ['.pdf'] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') return;
+      // Fallback to standard download
+    }
   }
 
-  const requestedName = window.prompt('Filename', DEFAULT_PDF_NAME);
-  if (requestedName === null) return;
-
-  downloadBlob(blob, normalizePdfName(requestedName));
+  downloadBlob(blob, safeName);
 }
 
 const pageSizeOptions: SegmentedControlOption<ImagePdfPageSize>[] = [

@@ -124,7 +124,8 @@ export function QueueList() {
       if (!isMounted) return;
       setSupportedFormats(supportMap);
 
-      if (!supportMap[globalConvertFormat]) {
+      const currentFormat = useForgeStore.getState().globalConvertFormat;
+      if (!supportMap[currentFormat]) {
         const fallback = (['webp', 'jpeg', 'png'] as OutputFormat[]).find((fmt) => supportMap[fmt]) || 'jpeg';
         setGlobalConvertFormat(fallback);
       }
@@ -132,7 +133,7 @@ export function QueueList() {
     return () => {
       isMounted = false;
     };
-  }, [globalConvertFormat, setGlobalConvertFormat]);
+  }, [setGlobalConvertFormat]);
 
   const computedFormatOptions = useMemo(() => {
     return formatOptions.map((opt) => ({

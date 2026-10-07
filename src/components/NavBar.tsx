@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, NavLink } from 'react-router-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface NavItem {
@@ -14,10 +14,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Image to PDF', path: '/image-to-pdf' },
 ];
 
-
 export function NavBar() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
 
@@ -72,13 +70,13 @@ export function NavBar() {
         </div>
 
         {/* Desktop Navigation (>= 768px) */}
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden md:flex items-center gap-6" aria-label="Main Navigation">
           {NAV_ITEMS.map((item) => {
             const active = isItemActive(item.path);
             return (
-              <button
+              <NavLink
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                to={item.path}
                 className={`text-xs font-medium tracking-wide transition-colors duration-150 py-1 border-b ${
                   active
                     ? 'text-white border-white'
@@ -86,7 +84,7 @@ export function NavBar() {
                 }`}
               >
                 {item.label}
-              </button>
+              </NavLink>
             );
           })}
         </nav>
@@ -113,14 +111,11 @@ export function NavBar() {
               {NAV_ITEMS.map((item) => {
                 const active = isItemActive(item.path);
                 return (
-                  <button
+                  <NavLink
                     key={item.path}
+                    to={item.path}
                     role="menuitem"
-                    type="button"
-                    onClick={() => {
-                      navigate(item.path);
-                      setIsOpen(false);
-                    }}
+                    onClick={() => setIsOpen(false)}
                     className="w-full text-left py-3 px-4 border-b border-white/10 last:border-b-0 cursor-pointer flex items-center"
                   >
                     <span
@@ -132,7 +127,7 @@ export function NavBar() {
                     >
                       {item.label}
                     </span>
-                  </button>
+                  </NavLink>
                 );
               })}
             </div>

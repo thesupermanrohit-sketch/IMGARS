@@ -106,15 +106,10 @@ export const createImagePdfSlice: StateCreator<
   },
 
   setImagePdfResult: (result) => {
-    if (result) {
-      get().imagePdfItems.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    }
-
     set({
       imagePdfResult: result,
       imagePdfReady: result !== null,
       imagePdfProgress: result ? 'PDF Ready' : '',
-      imagePdfItems: result ? [] : get().imagePdfItems,
     });
   },
 

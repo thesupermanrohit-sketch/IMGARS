@@ -46,10 +46,12 @@ async function convertImageMainThread(
     const convertedBlob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (b) => {
-          if (b) {
-            resolve(b);
-          } else {
+          if (!b) {
             reject(new Error(`Failed to export canvas to ${targetFormat}`));
+          } else if (b.type !== targetMime) {
+            reject(new Error(`Browser does not support exporting to ${targetFormat} (fell back to ${b.type})`));
+          } else {
+            resolve(b);
           }
         },
         targetMime,
@@ -74,7 +76,9 @@ export async function convertImage(
     try {
       return await workerApi.convertImageInWorker(blob, targetFormat, quality);
     } catch (err) {
-      console.warn('Worker conversion failed, falling back to main thread canvas:', err);
+      console.warn('Worker conversion failed, terminating and resetting worker:', err);
+      const { resetConvertWorker } = await import('./convertWorkerClient');
+      resetConvertWorker();
     }
   }
 
