@@ -14,7 +14,6 @@ const PDF_PAGE_SIZES = {
   a4: { width: 595.28, height: 841.89 },
 };
 
-const DIRECT_EMBED_TYPES = new Set(['image/jpeg', 'image/png']);
 
 async function decodeImage(file: File): Promise<ImageBitmap> {
   if (typeof createImageBitmap !== 'function') {
@@ -164,7 +163,7 @@ async function generatePdf(
 
   onProgress('Finalizing PDF...');
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
 
   return { blob, size: blob.size };
 }
