@@ -25,7 +25,7 @@ function readActiveSessions(): Record<string, number> {
     const parsed = JSON.parse(localStorage.getItem(ACTIVE_SESSIONS_KEY) || '{}');
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
-    return {};
+    return { [DB_SESSION_ID]: Date.now() };
   }
 }
 
@@ -37,14 +37,22 @@ export function registerDbSession() {
     if (now - lastSeen > SESSION_TTL_MS) delete sessions[id];
   }
   sessions[DB_SESSION_ID] = now;
-  localStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
+  try {
+    localStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
+  } catch {
+    // Session tracking is best-effort and must not block image processing.
+  }
 }
 
 export function unregisterDbSession() {
   if (typeof localStorage === 'undefined') return;
   const sessions = readActiveSessions();
   delete sessions[DB_SESSION_ID];
-  localStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
+  try {
+    localStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
+  } catch {
+    // Session tracking is best-effort and must not block app shutdown.
+  }
 }
 
 export function getStaleImageIds(storedIds: (string | number)[], activeIds: string[]) {

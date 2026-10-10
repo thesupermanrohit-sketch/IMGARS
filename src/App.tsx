@@ -55,10 +55,14 @@ export function App() {
   // items currently represented in the live queue.
   useEffect(() => {
     registerDbSession();
-    void db.cleanupStaleImages(
-      useForgeStore.getState().queue.map((item) => item.id),
-      getDbSessionId()
-    );
+    void db
+      .cleanupStaleImages(
+        useForgeStore.getState().queue.map((item) => item.id),
+        getDbSessionId()
+      )
+      .catch((error) => {
+        console.error('Failed to clean up stale images:', error);
+      });
     const heartbeat = window.setInterval(registerDbSession, 5 * 60 * 1000);
 
     return () => {

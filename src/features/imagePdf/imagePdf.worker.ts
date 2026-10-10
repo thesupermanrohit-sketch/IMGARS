@@ -163,7 +163,8 @@ async function generatePdf(
 
   onProgress('Finalizing PDF...');
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+  const pdfData = new Uint8Array(pdfBytes);
+  const blob = new Blob([pdfData.buffer], { type: 'application/pdf' });
 
   return { blob, size: blob.size };
 }

@@ -20,21 +20,30 @@ export async function compressImage(
 
   try {
     const compressedFile = await imageCompression(file, options);
-    return compressedFile;
+    return ensureTargetSize(compressedFile, targetSizeKb);
   } catch (error) {
     console.error('Compression failed:', error);
-    // If the compression fails or cannot meet the constraints, try a fallback with minimal constraints
+    // Retry without a worker, but preserve the requested size ceiling.
     try {
       const fallbackOptions: Parameters<typeof imageCompression>[1] = {
-        maxSizeMB: maxSizeMB * 1.5,
-        useWebWorker: true,
+        maxSizeMB,
+        useWebWorker: false,
         ...(maxWidthOrHeight !== undefined ? { maxWidthOrHeight } : {}),
       };
-      return await imageCompression(file, fallbackOptions);
+      const fallbackFile = await imageCompression(file, fallbackOptions);
+      return ensureTargetSize(fallbackFile, targetSizeKb);
     } catch (fallbackError) {
       const primaryMsg = error instanceof Error ? error.message : String(error);
       const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
       throw new Error(`Failed to compress image: ${primaryMsg} (fallback: ${fallbackMsg})`);
     }
   }
+}
+
+function ensureTargetSize(blob: Blob, targetSizeKb: number): Blob {
+  const targetSizeBytes = Math.round(targetSizeKb * 1024);
+  if (blob.size > targetSizeBytes) {
+    throw new Error(`Compression could not meet the ${targetSizeKb} KB target.`);
+  }
+  return blob;
 }

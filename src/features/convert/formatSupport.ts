@@ -54,9 +54,13 @@ export async function isFormatSupported(format: OutputFormat): Promise<boolean> 
  * Returns a map of supported output formats for the current browser
  */
 export async function getSupportedFormats(): Promise<Record<OutputFormat, boolean>> {
+  if (supportedFormatsPromise) return supportedFormatsPromise;
+
   const formats: OutputFormat[] = ['jpeg', 'webp', 'avif', 'png'];
-  const results = await Promise.all(
+  supportedFormatsPromise = Promise.all(
     formats.map(async (fmt) => [fmt, await isFormatSupported(fmt)] as const)
-  );
-  return Object.fromEntries(results) as Record<OutputFormat, boolean>;
+  ).then((results) => Object.fromEntries(results) as Record<OutputFormat, boolean>);
+  return supportedFormatsPromise;
 }
+
+let supportedFormatsPromise: Promise<Record<OutputFormat, boolean>> | null = null;

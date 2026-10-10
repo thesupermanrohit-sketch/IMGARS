@@ -19,7 +19,7 @@ export const createImagePdfSlice: StateCreator<
 
   addImagePdfFiles: (files) => {
     const newItems = files
-      .filter((file) => IMAGE_PDF_ACCEPTED_TYPES.has(file.type))
+      .filter((file) => IMAGE_PDF_ACCEPTED_TYPES.has(file.type) && file.size > 0)
       .map((file, index) => ({
         id: crypto.randomUUID(),
         file,
@@ -39,7 +39,7 @@ export const createImagePdfSlice: StateCreator<
       imagePdfItems: [...state.imagePdfItems, ...newItems],
       imagePdfResult: null,
       imagePdfReady: false,
-      imagePdfError: files.length !== newItems.length ? 'Some unsupported files were skipped.' : undefined,
+       imagePdfError: files.length !== newItems.length ? 'Some unsupported or empty files were skipped.' : undefined,
     }));
   },
 
