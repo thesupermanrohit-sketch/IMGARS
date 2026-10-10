@@ -59,9 +59,13 @@ export function DropZone({
     e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
-    
-    if (e.dataTransfer.files) {
-      await processUploadedFiles(e.dataTransfer.files);
+
+    try {
+      if (e.dataTransfer.files) {
+        await processUploadedFiles(e.dataTransfer.files);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
     }
   };
 

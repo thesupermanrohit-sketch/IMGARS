@@ -130,7 +130,7 @@ export const createQueueSlice: StateCreator<
 
       let processedBlob: Blob;
       let skipReason: string | undefined;
-      const targetMode = activeTab === 'imagePdf' ? (item.mode || 'convert') : (activeTab || item.mode);
+      const targetMode = item.mode || (activeTab === 'imagePdf' ? 'convert' : activeTab);
 
       if (targetMode === 'compress') {
         const { compressImage } = await import('../../features/compress/compressUtil');
@@ -215,7 +215,7 @@ export const createQueueSlice: StateCreator<
 
     let fileName = item.name;
     const { activeTab } = get();
-    const itemMode = activeTab === 'imagePdf' ? (item.mode || 'convert') : (activeTab || item.mode);
+    const itemMode = item.mode || (activeTab === 'imagePdf' ? 'convert' : activeTab);
 
     if (itemMode === 'compress') {
       const lastDotIndex = fileName.lastIndexOf('.');

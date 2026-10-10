@@ -82,6 +82,46 @@ describe('useForgeStore', () => {
     expect(state.queue[0].outputFormat).toBe('png');
   });
 
+  it('does not assign convert formats to other queue modes', () => {
+    useForgeStore.setState({
+      activeTab: 'convert',
+      queue: [
+        {
+          id: 'compress-item',
+          name: 'compress.jpg',
+          type: 'image/jpeg',
+          originalSize: 1024,
+          status: 'pending',
+          mode: 'compress',
+        },
+        {
+          id: 'increase-item',
+          name: 'increase.jpg',
+          type: 'image/jpeg',
+          originalSize: 1024,
+          status: 'pending',
+          mode: 'increaseSize',
+        },
+        {
+          id: 'convert-item',
+          name: 'convert.jpg',
+          type: 'image/jpeg',
+          originalSize: 1024,
+          status: 'pending',
+          mode: 'convert',
+          outputFormat: 'webp',
+        },
+      ],
+    });
+
+    useForgeStore.getState().setGlobalConvertFormat('png');
+    const queue = useForgeStore.getState().queue;
+
+    expect(queue[0].outputFormat).toBeUndefined();
+    expect(queue[1].outputFormat).toBeUndefined();
+    expect(queue[2].outputFormat).toBe('png');
+  });
+
   it('reorders queue correctly', () => {
     useForgeStore.setState({
       queue: [

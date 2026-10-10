@@ -13,7 +13,7 @@ export const createConvertSlice: StateCreator<
     set((state) => ({
       globalConvertFormat: format,
       queue: state.queue.map((item) =>
-        item.mode === 'convert' || !item.mode || state.activeTab === 'convert'
+        item.mode === 'convert' || !item.mode
           ? { ...item, outputFormat: format }
           : item
       ),

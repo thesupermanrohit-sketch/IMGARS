@@ -120,6 +120,21 @@ export function ImagePdfPanel() {
   const generatePdf = async () => {
     if (imagePdfItems.length === 0 || imagePdfIsGenerating) return;
 
+    const generationSnapshot = {
+      itemIds: imagePdfItems.map((item) => item.id),
+      pageSize: imagePdfPageSize,
+      orientation: imagePdfOrientation,
+    };
+    const isGenerationCurrent = () => {
+      const currentState = useForgeStore.getState();
+      const currentIds = currentState.imagePdfItems.map((item) => item.id);
+      return (
+        currentState.imagePdfPageSize === generationSnapshot.pageSize &&
+        currentState.imagePdfOrientation === generationSnapshot.orientation &&
+        currentIds.length === generationSnapshot.itemIds.length &&
+        currentIds.every((id, index) => id === generationSnapshot.itemIds[index])
+      );
+    };
     const { worker, api } = createImagePdfWorker();
     setImagePdfGenerating(true);
     setImagePdfError(undefined);
@@ -138,8 +153,13 @@ export function ImagePdfPanel() {
         })
       );
 
-      setImagePdfResult(result);
+      if (isGenerationCurrent()) {
+        setImagePdfResult(result);
+      } else {
+        setImagePdfProgress('');
+      }
     } catch (error) {
+      if (!isGenerationCurrent()) return;
       setImagePdfResult(null);
       setImagePdfError(error instanceof Error ? error.message : 'PDF generation failed.');
       setImagePdfProgress('');
