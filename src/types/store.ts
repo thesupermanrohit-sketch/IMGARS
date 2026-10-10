@@ -10,6 +10,7 @@ import type { Tab } from '../constants/tabs';
 
 export interface FileItem {
   id: string;
+  ownerId?: string;
   name: string;
   type: string;
   originalSize: number;
@@ -86,4 +87,3 @@ export type ForgeState = NavigationSlice &
   IncreaseSizeSlice &
   ConvertSlice &
   ImagePdfSlice;
-

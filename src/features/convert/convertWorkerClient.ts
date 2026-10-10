@@ -4,6 +4,12 @@ import type { ConvertWorkerApi } from './types';
 let cachedWorker: Worker | null = null;
 let cachedApi: Remote<ConvertWorkerApi> | null = null;
 
+export function resetConvertWorker() {
+  cachedWorker?.terminate();
+  cachedWorker = null;
+  cachedApi = null;
+}
+
 export function getConvertWorkerApi(): Remote<ConvertWorkerApi> | null {
   if (typeof window === 'undefined' || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
     return null;

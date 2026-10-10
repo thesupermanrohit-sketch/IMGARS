@@ -1,7 +1,7 @@
 import type { OutputFormat } from './types';
 import { FORMAT_MIME_MAP } from './constants';
 import { isFormatSupported, getSupportedFormats } from './formatSupport';
-import { getConvertWorkerApi } from './convertWorkerClient';
+import { getConvertWorkerApi, resetConvertWorker } from './convertWorkerClient';
 
 export type { OutputFormat };
 export { isFormatSupported, getSupportedFormats };
@@ -75,6 +75,7 @@ export async function convertImage(
       return await workerApi.convertImageInWorker(blob, targetFormat, quality);
     } catch (err) {
       console.warn('Worker conversion failed, falling back to main thread canvas:', err);
+      resetConvertWorker();
     }
   }
 

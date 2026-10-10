@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useForgeStore } from '../store/useForgeStore';
+import { isSupportedImageMimeType } from './imageMime';
 
 interface DropZoneProps {
   accept?: string;
@@ -12,12 +13,14 @@ interface DropZoneProps {
 export function DropZone({
   accept = 'image/*',
   prompt = 'Drop images here',
-  isAcceptedFile = (file) => file.type.startsWith('image/'),
+  isAcceptedFile,
   onFiles,
   onRejectedFiles,
 }: DropZoneProps) {
   const addFiles = useForgeStore((state) => state.addFiles);
+  const activeTab = useForgeStore((state) => state.activeTab);
   const [isDragActive, setIsDragActive] = useState(false);
+  const acceptsFile = isAcceptedFile ?? ((file: File) => isSupportedImageMimeType(file.type, activeTab));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -37,7 +40,7 @@ export function DropZone({
     const rejectedFiles: File[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (isAcceptedFile(file)) {
+      if (acceptsFile(file)) {
         imageFiles.push(file);
       } else {
         rejectedFiles.push(file);
@@ -63,8 +66,15 @@ export function DropZone({
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      await processUploadedFiles(e.target.files);
+    try {
+      if (e.target.files) {
+        await processUploadedFiles(e.target.files);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+    } finally {
+      // Browsers do not emit change when the same file is selected twice.
+      e.target.value = '';
     }
   };
 

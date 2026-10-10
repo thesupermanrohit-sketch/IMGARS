@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import { db } from '../../db/db';
+import { db, getDbSessionId } from '../../db/db';
 import type { OutputFormat } from '../../features/convert/types';
 import type { ForgeState, QueueSlice, FileItem } from '../../types/store';
 
@@ -19,24 +19,35 @@ export const createQueueSlice: StateCreator<
     const currentTab = get().activeTab;
     const defaultFormat: OutputFormat = get().globalConvertFormat || 'webp';
 
-    for (const file of files) {
-      const id = crypto.randomUUID();
+    try {
+      for (const file of files) {
+        const id = crypto.randomUUID();
 
-      await db.images.put({
-        id,
-        originalBlob: file,
-      });
+        await db.images.put({
+          id,
+          originalBlob: file,
+          ownerId: getDbSessionId(),
+        });
 
-      newItems.push({
-        id,
-        name: file.name,
-        type: file.type,
-        originalSize: file.size,
-        previewUrl: URL.createObjectURL(file),
-        status: 'pending',
-        mode: currentTab,
-        ...(currentTab === 'convert' ? { outputFormat: defaultFormat } : {}),
+        newItems.push({
+          id,
+          ownerId: getDbSessionId(),
+          name: file.name,
+          type: file.type,
+          originalSize: file.size,
+          previewUrl: URL.createObjectURL(file),
+          status: 'pending',
+          mode: currentTab,
+          ...(currentTab === 'convert' ? { outputFormat: defaultFormat } : {}),
+        });
+      }
+    } catch (error) {
+      // Do not leave records for a batch that was never added to the queue.
+      await db.deleteImages(newItems.map((item) => item.id));
+      newItems.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       });
+      throw error;
     }
 
     set((state) => ({
@@ -48,11 +59,12 @@ export const createQueueSlice: StateCreator<
     const item = get().queue.find((queuedItem) => queuedItem.id === id);
     if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
 
-    await db.images.delete(id);
-
+    // Remove from the live queue before awaiting storage so an in-flight
+    // processor cannot publish a result for this item.
     set((state) => ({
       queue: state.queue.filter((item) => item.id !== id),
     }));
+    await db.images.delete(id);
   },
 
   clearQueue: async () => {
@@ -62,10 +74,10 @@ export const createQueueSlice: StateCreator<
       return item.id;
     });
 
+    set({ queue: [] });
     if (ids.length > 0) {
       await db.deleteImages(ids);
     }
-    set({ queue: [] });
   },
 
   reorderQueue: (activeId, overId) => {
@@ -135,7 +147,11 @@ export const createQueueSlice: StateCreator<
         processedBlob = await convertImage(savedData.originalBlob, targetFormat);
       }
 
+      // The item may have been removed while conversion was running.
+      if (!get().queue.some((queuedItem) => queuedItem.id === id)) return;
       await db.images.update(id, { processedBlob });
+
+      if (!get().queue.some((queuedItem) => queuedItem.id === id)) return;
 
       set((state) => ({
         queue: state.queue.map((i) =>
@@ -221,4 +237,3 @@ export const createQueueSlice: StateCreator<
     return { blob: savedData.processedBlob, fileName };
   },
 });
-

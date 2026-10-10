@@ -104,13 +104,35 @@ describe('increaseSizeUtil', () => {
       expect(result.blob.size).toBe(50 * 1024);
       expect(result.blob.type).toBe('image/jpeg');
 
-      // Verify JPEG SOI and COM marker
+       // Verify JPEG SOI, preserved APP0, then COM padding
       const buf = new Uint8Array(await result.blob.arrayBuffer());
       expect(buf[0]).toBe(0xff);
       expect(buf[1]).toBe(0xd8); // SOI
-      expect(buf[2]).toBe(0xff);
-      expect(buf[3]).toBe(0xfe); // COM
-    });
+       expect(buf[2]).toBe(0xff);
+       expect(buf[3]).toBe(0xe0); // APP0 JFIF remains first
+       expect(buf[20]).toBe(0xff);
+       expect(buf[21]).toBe(0xfe); // COM follows APP0
+       expect(buf[24]).toBeGreaterThanOrEqual(0x20);
+       expect(buf[24]).toBeLessThanOrEqual(0x7e);
+     });
+
+     it('keeps APP1 EXIF before padding', async () => {
+       const original = createMinimalJpeg();
+       const exif = new Uint8Array([0xff, 0xe1, 0x00, 0x0a, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49]);
+       const withExif = new Uint8Array(original.length + exif.length);
+       withExif.set(original.subarray(0, 2));
+       withExif.set(exif, 2);
+       withExif.set(original.subarray(2), 2 + exif.length);
+
+       const result = await increaseImageSize(new Blob([withExif], { type: 'image/jpeg' }), 50, 'image/jpeg');
+       const buf = new Uint8Array(await result.blob.arrayBuffer());
+       expect(buf[2]).toBe(0xff);
+       expect(buf[3]).toBe(0xe1);
+       expect(buf[2 + exif.length]).toBe(0xff); // APP0 remains after APP1
+       expect(buf[3 + exif.length]).toBe(0xe0);
+       expect(buf[2 + exif.length + 18]).toBe(0xff);
+       expect(buf[3 + exif.length + 18]).toBe(0xfe);
+     });
   });
 
   describe('PNG padding', () => {
@@ -164,10 +186,35 @@ describe('increaseSizeUtil', () => {
 
       // Verify VP8X chunk exists
       expect(buf[12]).toBe(0x56); // 'V'
-      expect(buf[13]).toBe(0x50); // 'P'
-      expect(buf[14]).toBe(0x38); // '8'
-      expect(buf[15]).toBe(0x58); // 'X'
-    });
+       expect(buf[13]).toBe(0x50); // 'P'
+       expect(buf[14]).toBe(0x38); // '8'
+       expect(buf[15]).toBe(0x58); // 'X'
+
+       // EXIF is non-empty and every RIFF chunk has an even payload size.
+       let pos = 12;
+       while (pos < buf.length) {
+         const chunkSize = view.getUint32(pos + 4, true);
+         expect(chunkSize % 2).toBe(0);
+         pos += 8 + chunkSize;
+       }
+       expect(pos).toBe(buf.length);
+       const exifOffset = buf.findIndex((value, index) => index >= 12 && value === 0x45 && buf[index + 1] === 0x58 && buf[index + 2] === 0x49 && buf[index + 3] === 0x46);
+       expect(exifOffset).toBeGreaterThan(0);
+       expect(view.getUint32(exifOffset + 4, true)).toBeGreaterThanOrEqual(14);
+       expect(buf[exifOffset + 8]).toBe(0x49);
+       expect(buf[exifOffset + 9]).toBe(0x49);
+       expect(buf.slice(exifOffset + 18, exifOffset + 22)).toEqual(new Uint8Array([0, 0, 0, 0]));
+     });
+
+     it('rejects WebP with unparseable dimensions', async () => {
+       const invalid = createMinimalWebP();
+       invalid[23] = 0;
+       invalid[24] = 0;
+       invalid[25] = 0;
+       await expect(
+         increaseImageSize(new Blob([invalid.buffer as ArrayBuffer], { type: 'image/webp' }), 25, 'image/webp')
+       ).rejects.toThrow('invalid WebP dimensions');
+     });
   });
 
   describe('Skipping logic', () => {

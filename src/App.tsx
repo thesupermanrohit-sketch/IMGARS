@@ -5,6 +5,7 @@ import { DropZone } from './components/DropZone';
 import { QueueList } from './components/QueueList';
 import { ImagePdfPanel } from './features/imagePdf/ImagePdfPanel';
 import { useForgeStore } from './store/useForgeStore';
+import { db, getDbSessionId, registerDbSession, unregisterDbSession } from './db/db';
 
 interface TabPageProps {
   title: string;
@@ -49,6 +50,22 @@ export function App() {
       setActiveTab('compress');
     }
   }, [location.pathname, setActiveTab]);
+
+  // Remove interrupted uploads from prior runs while retaining records for
+  // items currently represented in the live queue.
+  useEffect(() => {
+    registerDbSession();
+    void db.cleanupStaleImages(
+      useForgeStore.getState().queue.map((item) => item.id),
+      getDbSessionId()
+    );
+    const heartbeat = window.setInterval(registerDbSession, 5 * 60 * 1000);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      unregisterDbSession();
+    };
+  }, []);
 
   // Object URL lifecycle cleanup on tab close / reload
   useEffect(() => {

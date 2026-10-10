@@ -70,7 +70,8 @@ export async function increaseImageSize(
 }
 
 /**
- * Pads a JPEG image by inserting one or more COM (0xFF 0xFE) chunks after SOI (0xFF 0xD8).
+ * Pads a JPEG image by inserting one or more COM (0xFF 0xFE) chunks after
+ * leading APP segments, keeping JFIF/EXIF metadata before the padding.
  */
 function padJpeg(
   bytes: Uint8Array,
@@ -100,22 +101,34 @@ function padJpeg(
   const outBytes = new Uint8Array(outBuffer);
   const outView = new DataView(outBuffer);
 
-  // Write SOI (2 bytes)
-  outBytes[0] = 0xff;
-  outBytes[1] = 0xd8;
+  // Keep APP0/APP1 (including JFIF/EXIF) immediately after SOI. Insert the
+  // padding before the first non-APP marker instead of changing that order.
+  let insertAt = 2;
+  while (insertAt + 4 <= currentLen && bytes[insertAt] === 0xff) {
+    let markerPos = insertAt;
+    while (markerPos < currentLen && bytes[markerPos] === 0xff) markerPos++;
+    const marker = bytes[markerPos];
+    if (marker < 0xe0 || marker > 0xef || markerPos + 2 >= currentLen) break;
+    const segmentLength = (bytes[markerPos + 1] << 8) | bytes[markerPos + 2];
+    if (segmentLength < 2 || markerPos + 2 + segmentLength > currentLen) break;
+    insertAt = markerPos + 1 + segmentLength;
+  }
 
-  // Write COM segments starting at offset 2
-  let outPos = 2;
+  // Write COM segments at the selected insertion point.
+  let outPos = insertAt;
   for (const segSize of segments) {
     outBytes[outPos] = 0xff;
     outBytes[outPos + 1] = 0xfe; // COM marker
     outView.setUint16(outPos + 2, segSize - 2, false); // Length field (includes length bytes)
-    // Payload bytes are automatically 0 in newly allocated ArrayBuffer
+    // COM payloads are printable ASCII rather than arbitrary NUL bytes.
+    for (let i = 4; i < segSize; i++) {
+      outBytes[outPos + i] = 0x20 + ((i - 4) % 95);
+    }
     outPos += segSize;
   }
 
-  // Copy remaining original JPEG content from offset 2
-  outBytes.set(bytes.subarray(2), outPos);
+  outBytes.set(bytes.subarray(0, insertAt), 0);
+  outBytes.set(bytes.subarray(insertAt), outPos);
 
   return new Blob([outBuffer], { type });
 }
@@ -219,6 +232,8 @@ function padWebP(
   const currentLen = bytes.byteLength;
   const bytesToAdd = targetSizeBytes - currentLen;
 
+  const chunks = readWebPChunks(bytes, dataView);
+
   // Read first chunk FourCC at offset 12
   const firstFourCC = String.fromCharCode(
     bytes[12],
@@ -228,20 +243,17 @@ function padWebP(
   );
 
   if (firstFourCC === 'VP8X') {
-    // Already extended WebP
-    const exifChunkBytes = Math.max(bytesToAdd, 8);
-    let exifPayloadLen: number;
-    let padByte = 0;
+    const vp8x = chunks[0];
+    if (vp8x.size < 10) throw new Error('Unsupported or invalid WebP dimensions.');
+    const width = read24(bytes, 24) + 1;
+    const height = read24(bytes, 27) + 1;
+    if (width < 1 || height < 1) throw new Error('Unsupported or invalid WebP dimensions.');
 
-    if (exifChunkBytes % 2 === 0) {
-      exifPayloadLen = exifChunkBytes - 8;
-    } else {
-      exifPayloadLen = exifChunkBytes - 9;
-      padByte = 1;
-    }
-
-    const totalAdded = 8 + exifPayloadLen + padByte;
-    const finalSize = currentLen + totalAdded;
+    const totalAdded = evenAtLeast(bytesToAdd, 18);
+    const exifPayloadLen = Math.max(14, totalAdded - 8 - (totalAdded % 2));
+    const padByte = (exifPayloadLen % 2) === 1 ? 1 : 0;
+    const actualAdded = 8 + exifPayloadLen + padByte;
+    const finalSize = currentLen + actualAdded;
     const outBuffer = new ArrayBuffer(finalSize);
     const outBytes = new Uint8Array(outBuffer);
     const outView = new DataView(outBuffer);
@@ -263,17 +275,7 @@ function padWebP(
     outView.setUint32(pos, exifPayloadLen, true); // Little-endian chunk size
     pos += 4;
 
-    // Write minimal standard TIFF header if space permits
-    if (exifPayloadLen >= 8) {
-      outBytes[pos] = 0x49; // 'I'
-      outBytes[pos + 1] = 0x49; // 'I'
-      outBytes[pos + 2] = 0x2a; // 42
-      outBytes[pos + 3] = 0x00;
-      outBytes[pos + 4] = 0x08; // Offset to IFD0
-      outBytes[pos + 5] = 0x00;
-      outBytes[pos + 6] = 0x00;
-      outBytes[pos + 7] = 0x00;
-    }
+    writeExifPayload(outBytes, pos, exifPayloadLen);
 
     // Update RIFF total size header (fileSize - 8)
     outView.setUint32(4, finalSize - 8, true);
@@ -282,42 +284,43 @@ function padWebP(
   }
 
   // Simple WebP (VP8 or VP8L) -> upgrade container to VP8X + EXIF chunk
-  let width = 0;
-  let height = 0;
+  let width: number | undefined;
+  let height: number | undefined;
   let hasAlpha = false;
 
   if (firstFourCC === 'VP8 ') {
     // Lossy VP8 bitstream parse dimensions
-    if (currentLen >= 30) {
+    const vp8 = chunks.find((chunk) => chunk.fourCC === 'VP8 ');
+    if (vp8 && vp8.size >= 10) {
       const startCode =
-        (bytes[23] << 16) | (bytes[24] << 8) | bytes[25];
+        (bytes[vp8.dataOffset + 3] << 16) |
+        (bytes[vp8.dataOffset + 4] << 8) |
+        bytes[vp8.dataOffset + 5];
       if (startCode === 0x9d012a) {
-        width = dataView.getUint16(26, true) & 0x3fff;
-        height = dataView.getUint16(28, true) & 0x3fff;
+        width = dataView.getUint16(vp8.dataOffset + 6, true) & 0x3fff;
+        height = dataView.getUint16(vp8.dataOffset + 8, true) & 0x3fff;
       }
     }
   } else if (firstFourCC === 'VP8L') {
     // Lossless VP8L bitstream parse dimensions
-    if (currentLen >= 25 && bytes[20] === 0x2f) {
-      const val = dataView.getUint32(21, true);
+    const vp8l = chunks.find((chunk) => chunk.fourCC === 'VP8L');
+    if (vp8l && vp8l.size >= 5 && bytes[vp8l.dataOffset] === 0x2f) {
+      const val = dataView.getUint32(vp8l.dataOffset + 1, true);
       width = (val & 0x3fff) + 1;
       height = ((val >> 14) & 0x3fff) + 1;
       hasAlpha = ((val >> 28) & 0x01) === 1;
     }
   }
 
-  // VP8X chunk takes 18 bytes
-  // Remainder is for EXIF chunk (min 8 bytes)
-  const exifChunkBytes = Math.max(bytesToAdd - 18, 8);
-  let exifPayloadLen: number;
-  let padByte = 0;
-
-  if (exifChunkBytes % 2 === 0) {
-    exifPayloadLen = exifChunkBytes - 8;
-  } else {
-    exifPayloadLen = exifChunkBytes - 9;
-    padByte = 1;
+  if (width === undefined || height === undefined || width < 1 || height < 1) {
+    throw new Error('Unsupported or invalid WebP dimensions.');
   }
+
+  // VP8X chunk takes 18 bytes
+  // Remainder is for EXIF chunk (min 14 bytes)
+  const requestedExifTotal = evenAtLeast(bytesToAdd - 18, 18);
+  const exifPayloadLen = Math.max(14, requestedExifTotal - 8 - (requestedExifTotal % 2));
+  const padByte = (exifPayloadLen % 2) === 1 ? 1 : 0;
 
   const totalExifChunkSize = 8 + exifPayloadLen + padByte;
   const finalSize = currentLen + 18 + totalExifChunkSize;
@@ -373,20 +376,46 @@ function padWebP(
   outView.setUint32(pos, exifPayloadLen, true);
   pos += 4;
 
-  // Minimal standard TIFF header if space permits
-  if (exifPayloadLen >= 8) {
-    outBytes[pos] = 0x49; // 'I'
-    outBytes[pos + 1] = 0x49; // 'I'
-    outBytes[pos + 2] = 0x2a; // 42
-    outBytes[pos + 3] = 0x00;
-    outBytes[pos + 4] = 0x08; // Offset to IFD0
-    outBytes[pos + 5] = 0x00;
-    outBytes[pos + 6] = 0x00;
-    outBytes[pos + 7] = 0x00;
-  }
+  writeExifPayload(outBytes, pos, exifPayloadLen);
 
   // Update RIFF total size header
   outView.setUint32(4, finalSize - 8, true);
 
   return new Blob([outBuffer], { type });
+}
+
+interface WebPChunk { fourCC: string; size: number; dataOffset: number; }
+
+function readWebPChunks(bytes: Uint8Array, view: DataView): WebPChunk[] {
+  if (bytes.length < 20 || view.getUint32(4, true) !== bytes.length - 8) {
+    throw new Error('Unsupported or invalid WebP dimensions.');
+  }
+  const chunks: WebPChunk[] = [];
+  let pos = 12;
+  while (pos < bytes.length) {
+    if (pos + 8 > bytes.length) throw new Error('Unsupported or invalid WebP dimensions.');
+    const size = view.getUint32(pos + 4, true);
+    const end = pos + 8 + size + (size % 2);
+    if (end > bytes.length) throw new Error('Unsupported or invalid WebP dimensions.');
+    chunks.push({ fourCC: String.fromCharCode(...bytes.subarray(pos, pos + 4)), size, dataOffset: pos + 8 });
+    pos = end;
+  }
+  return chunks;
+}
+
+function read24(bytes: Uint8Array, offset: number): number {
+  return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+}
+
+function evenAtLeast(value: number, minimum: number): number {
+  return Math.max(minimum, value + (value % 2));
+}
+
+function writeExifPayload(bytes: Uint8Array, offset: number, length: number): void {
+  // Little-endian TIFF header, empty IFD0 entry count, and zero next-IFD offset.
+  bytes.set([
+    0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  ], offset);
+  bytes.fill(0x20, offset + 14, offset + length);
 }
