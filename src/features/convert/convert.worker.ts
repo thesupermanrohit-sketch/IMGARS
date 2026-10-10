@@ -35,6 +35,10 @@ async function convertImageInWorker(
       quality: targetFormat === 'jpeg' || targetFormat === 'webp' || targetFormat === 'avif' ? quality : undefined,
     });
 
+    if (convertedBlob.type !== targetMime) {
+      throw new Error(`Worker canvas does not support exporting to ${targetFormat} (fell back to ${convertedBlob.type})`);
+    }
+
     return convertedBlob;
   } finally {
     bitmap.close();

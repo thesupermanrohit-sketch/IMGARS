@@ -206,8 +206,10 @@ function padPng(
   outBytes[pos] = 0x00; // Null separator
   pos += 1;
 
-  // Remainder of data is text (padding zeroes)
-  pos = typeAndDataStart + 4 + dataLen;
+  // Remainder of data is text: MUST NOT contain null bytes per W3C PNG spec (Section 11.3.3)
+  const textEnd = typeAndDataStart + 4 + dataLen;
+  outBytes.fill(0x20, pos, textEnd);
+  pos = textEnd;
 
   // Calculate CRC-32 over Type + Data
   const chunkCrc = crc32(outBytes, typeAndDataStart, 4 + dataLen);

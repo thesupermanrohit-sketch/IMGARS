@@ -104,35 +104,35 @@ describe('increaseSizeUtil', () => {
       expect(result.blob.size).toBe(50 * 1024);
       expect(result.blob.type).toBe('image/jpeg');
 
-       // Verify JPEG SOI, preserved APP0, then COM padding
+      // Verify JPEG SOI, preserved APP0, then COM padding
       const buf = new Uint8Array(await result.blob.arrayBuffer());
       expect(buf[0]).toBe(0xff);
       expect(buf[1]).toBe(0xd8); // SOI
-       expect(buf[2]).toBe(0xff);
-       expect(buf[3]).toBe(0xe0); // APP0 JFIF remains first
-       expect(buf[20]).toBe(0xff);
-       expect(buf[21]).toBe(0xfe); // COM follows APP0
-       expect(buf[24]).toBeGreaterThanOrEqual(0x20);
-       expect(buf[24]).toBeLessThanOrEqual(0x7e);
-     });
+      expect(buf[2]).toBe(0xff);
+      expect(buf[3]).toBe(0xe0); // APP0 JFIF remains first
+      expect(buf[20]).toBe(0xff);
+      expect(buf[21]).toBe(0xfe); // COM follows APP0
+      expect(buf[24]).toBeGreaterThanOrEqual(0x20);
+      expect(buf[24]).toBeLessThanOrEqual(0x7e);
+    });
 
-     it('keeps APP1 EXIF before padding', async () => {
-       const original = createMinimalJpeg();
-       const exif = new Uint8Array([0xff, 0xe1, 0x00, 0x0a, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49]);
-       const withExif = new Uint8Array(original.length + exif.length);
-       withExif.set(original.subarray(0, 2));
-       withExif.set(exif, 2);
-       withExif.set(original.subarray(2), 2 + exif.length);
+    it('keeps APP1 EXIF before padding', async () => {
+      const original = createMinimalJpeg();
+      const exif = new Uint8Array([0xff, 0xe1, 0x00, 0x0a, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49]);
+      const withExif = new Uint8Array(original.length + exif.length);
+      withExif.set(original.subarray(0, 2));
+      withExif.set(exif, 2);
+      withExif.set(original.subarray(2), 2 + exif.length);
 
-       const result = await increaseImageSize(new Blob([withExif], { type: 'image/jpeg' }), 50, 'image/jpeg');
-       const buf = new Uint8Array(await result.blob.arrayBuffer());
-       expect(buf[2]).toBe(0xff);
-       expect(buf[3]).toBe(0xe1);
-       expect(buf[2 + exif.length]).toBe(0xff); // APP0 remains after APP1
-       expect(buf[3 + exif.length]).toBe(0xe0);
-       expect(buf[2 + exif.length + 18]).toBe(0xff);
-       expect(buf[3 + exif.length + 18]).toBe(0xfe);
-     });
+      const result = await increaseImageSize(new Blob([withExif], { type: 'image/jpeg' }), 50, 'image/jpeg');
+      const buf = new Uint8Array(await result.blob.arrayBuffer());
+      expect(buf[2]).toBe(0xff);
+      expect(buf[3]).toBe(0xe1);
+      expect(buf[2 + exif.length]).toBe(0xff); // APP0 remains after APP1
+      expect(buf[3 + exif.length]).toBe(0xe0);
+      expect(buf[2 + exif.length + 18]).toBe(0xff);
+      expect(buf[3 + exif.length + 18]).toBe(0xfe);
+    });
   });
 
   describe('PNG padding', () => {
@@ -153,6 +153,22 @@ describe('increaseSizeUtil', () => {
       expect(buf[1]).toBe(0x50);
       expect(buf[2]).toBe(0x4e);
       expect(buf[3]).toBe(0x47);
+
+      // Verify that tEXt chunk text padding does not contain null bytes (0x00) per PNG spec
+      // tEXt starts after IHDR and IDAT, before IEND
+      // Search for 'tEXt'
+      let textChunkPos = -1;
+      for (let i = 8; i < buf.length - 12; i++) {
+        if (buf[i] === 0x74 && buf[i + 1] === 0x45 && buf[i + 2] === 0x58 && buf[i + 3] === 0x74) {
+          textChunkPos = i;
+          break;
+        }
+      }
+      expect(textChunkPos).toBeGreaterThan(0);
+      // Keyword is 'Comment' (7 bytes) + 1 null separator
+      const textStart = textChunkPos + 4 + 7 + 1;
+      // All text padding bytes must be ASCII spaces (0x20), not 0x00
+      expect(buf[textStart]).toBe(0x20);
 
       // Verify last 12 bytes is IEND
       const iend = buf.subarray(buf.length - 12);

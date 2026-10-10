@@ -1,8 +1,6 @@
 import type { OutputFormat } from './types';
 import { FORMAT_MIME_MAP } from './constants';
 
-const AVIF_TEST_IMAGE =
-  'data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADybWV0YQAAAAAAAAAoaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAGxpYmF2aWYAAAAADnBpdG0AAAAAAAEAAAAeaWxvYwAAAABEAAABAAEAAAABAAABGgAAAB0AAAAoaWluZgAAAAAAAQAAABppbmZlAgAAAAABAABhdjAxQ29sb3IAAAAAamlwcnAAAABLaXBjbwAAABRpc3BlAAAAAAAAAAIAAAACAAAAEHBpeGkAAAAAAwgICAAAAAxhdjFDgQ0MAAAAABNjb2xybmNseAACAAIAAYAAAAAXaXBtYQAAAAAAAAABAAEEAQKDBAAAACVtZGF0EgAKCBgANogQEAwgMg8f8D///8WfhwB8+ErK42A=';
 
 /**
  * Checks if the browser supports a specific image format (export and native capability)
@@ -46,24 +44,6 @@ export async function isFormatSupported(format: OutputFormat): Promise<boolean> 
       }
     } catch {
       // Continue to next checks
-    }
-  }
-
-  // 3. For AVIF, check native browser image decoding capability
-  if (format === 'avif' && typeof Image !== 'undefined') {
-    try {
-      const isNativeSupported = await new Promise<boolean>((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(img.width === 2 && img.height === 2);
-        img.onerror = () => resolve(false);
-        img.src = AVIF_TEST_IMAGE;
-      });
-
-      if (isNativeSupported) {
-        return true;
-      }
-    } catch {
-      return false;
     }
   }
 

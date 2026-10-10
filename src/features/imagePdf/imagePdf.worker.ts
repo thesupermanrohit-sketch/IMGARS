@@ -117,12 +117,28 @@ async function generatePdf(
       bitmap = await decodeImage(image.file);
       const pageDimensions = resolvePageDimensions(options, bitmap);
       const page = pdfDoc.addPage([pageDimensions.width, pageDimensions.height]);
-      const sourceBytes = DIRECT_EMBED_TYPES.has(image.file.type)
-        ? await image.file.arrayBuffer()
-        : await fileToJpegBytes(image.file, bitmap);
-      const embeddedImage = image.file.type === 'image/png'
-        ? await pdfDoc.embedPng(sourceBytes)
-        : await pdfDoc.embedJpg(sourceBytes);
+      let embeddedImage;
+      if (image.file.type === 'image/jpeg') {
+        const sourceBytes = await image.file.arrayBuffer();
+        try {
+          embeddedImage = await pdfDoc.embedJpg(sourceBytes);
+        } catch {
+          const fallbackBytes = await fileToJpegBytes(image.file, bitmap);
+          embeddedImage = await pdfDoc.embedJpg(fallbackBytes);
+        }
+      } else if (image.file.type === 'image/png') {
+        const sourceBytes = await image.file.arrayBuffer();
+        try {
+          embeddedImage = await pdfDoc.embedPng(sourceBytes);
+        } catch {
+          // Fall back to canvas rasterized JPEG on non-standard / interlaced PNGs
+          const fallbackBytes = await fileToJpegBytes(image.file, bitmap);
+          embeddedImage = await pdfDoc.embedJpg(fallbackBytes);
+        }
+      } else {
+        const sourceBytes = await fileToJpegBytes(image.file, bitmap);
+        embeddedImage = await pdfDoc.embedJpg(sourceBytes);
+      }
       const imagePlacement = resolveImagePlacement(options, pageDimensions, bitmap);
 
       if (options.pageSize === 'a4') {
@@ -148,9 +164,7 @@ async function generatePdf(
 
   onProgress('Finalizing PDF...');
   const pdfBytes = await pdfDoc.save();
-  const pdfBuffer = new ArrayBuffer(pdfBytes.byteLength);
-  new Uint8Array(pdfBuffer).set(pdfBytes);
-  const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
 
   return { blob, size: blob.size };
 }
