@@ -251,6 +251,11 @@ function padWebP(
     const height = read24(bytes, 27) + 1;
     if (width < 1 || height < 1) throw new Error('Unsupported or invalid WebP dimensions.');
 
+    const existingExif = chunks.find((chunk) => chunk.fourCC === 'EXIF');
+    if (existingExif) {
+      return expandWebPExif(bytes, chunks, existingExif, targetSizeBytes, type);
+    }
+
     const totalAdded = evenAtLeast(bytesToAdd, 18);
     const exifPayloadLen = Math.max(14, totalAdded - 8 - (totalAdded % 2));
     const padByte = (exifPayloadLen % 2) === 1 ? 1 : 0;
@@ -387,6 +392,43 @@ function padWebP(
 }
 
 interface WebPChunk { fourCC: string; size: number; dataOffset: number; }
+
+function expandWebPExif(
+  bytes: Uint8Array,
+  chunks: WebPChunk[],
+  existingExif: WebPChunk,
+  targetSizeBytes: number,
+  type: string
+): Blob {
+  // Keep the first EXIF payload (the one readers use), including all TIFF
+  // offsets. Remove duplicates left by older versions of the size-increase tool.
+  const keptChunks = chunks.filter((chunk) => chunk.fourCC !== 'EXIF' || chunk === existingExif);
+  const originalSize = 12 + keptChunks.reduce((size, chunk) => size + 8 + chunk.size + (chunk.size % 2), 0);
+  // Retain the existing extended-WebP padding floor (8-byte chunk + 14-byte TIFF).
+  const addedBytes = evenAtLeast(targetSizeBytes - originalSize, 22);
+  const output = new Uint8Array(originalSize + addedBytes);
+  const view = new DataView(output.buffer);
+  output.set(bytes.subarray(0, 12));
+
+  let offset = 12;
+  for (const chunk of keptChunks) {
+    const chunkStart = chunk.dataOffset - 8;
+    if (chunk === existingExif) {
+      const payloadSize = chunk.size + addedBytes;
+      output.set(bytes.subarray(chunkStart, chunk.dataOffset + chunk.size), offset);
+      view.setUint32(offset + 4, payloadSize, true);
+      output.fill(0x20, offset + 8 + chunk.size, offset + 8 + payloadSize);
+      offset += 8 + payloadSize + (payloadSize % 2);
+    } else {
+      const chunkSize = 8 + chunk.size + (chunk.size % 2);
+      output.set(bytes.subarray(chunkStart, chunkStart + chunkSize), offset);
+      offset += chunkSize;
+    }
+  }
+  output[20] |= 0x08;
+  view.setUint32(4, output.byteLength - 8, true);
+  return new Blob([output.buffer], { type });
+}
 
 function readWebPChunks(bytes: Uint8Array, view: DataView): WebPChunk[] {
   if (bytes.length < 20 || view.getUint32(4, true) !== bytes.length - 8) {

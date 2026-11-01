@@ -22,6 +22,7 @@ export interface FileItem {
   mode?: Tab;
   targetSizeKb?: number;
   outputFormat?: OutputFormat;
+  configVersion?: number;
   customDimension?: number;
 }
 

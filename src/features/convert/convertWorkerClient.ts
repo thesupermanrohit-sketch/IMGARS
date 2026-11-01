@@ -1,41 +1,38 @@
-import { wrap, type Remote } from 'comlink';
+import { wrap } from 'comlink';
 import type { ConvertWorkerApi } from './types';
 
-let cachedWorker: Worker | null = null;
-let cachedApi: Remote<ConvertWorkerApi> | null = null;
+const WORKER_TIMEOUT_MS = 120_000;
 
-export function resetConvertWorker(): void {
-  if (cachedWorker) {
-    try {
-      cachedWorker.terminate();
-    } catch {
-      // Ignore termination error
-    }
-  }
-  cachedWorker = null;
-  cachedApi = null;
-}
-
-export function getConvertWorkerApi(): Remote<ConvertWorkerApi> | null {
+export function getConvertWorkerApi(): ConvertWorkerApi | null {
   if (typeof window === 'undefined' || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
     return null;
   }
 
-  if (!cachedApi) {
-    try {
-      cachedWorker = new Worker(new URL('./convert.worker.ts', import.meta.url), {
+  return {
+    async convertImageInWorker(blob, targetFormat, quality) {
+      // Each job owns its worker: a bad image cannot interrupt other batch jobs.
+      const worker = new Worker(new URL('./convert.worker.ts', import.meta.url), {
         type: 'module',
       });
-      cachedWorker.onerror = () => {
-        resetConvertWorker();
-      };
-      cachedApi = wrap<ConvertWorkerApi>(cachedWorker) as Remote<ConvertWorkerApi>;
-    } catch (e) {
-      console.warn('Failed to initialize convert Web Worker, falling back to main thread.', e);
-      resetConvertWorker();
-      return null;
-    }
-  }
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const failure = new Promise<never>((_, reject) => {
+        worker.onerror = () => reject(new Error('Image conversion worker failed.'));
+        worker.onmessageerror = () => reject(new Error('Could not read the worker response.'));
+        timeout = setTimeout(() => reject(new Error('Image conversion worker timed out.')), WORKER_TIMEOUT_MS);
+      });
 
-  return cachedApi;
+      try {
+        const api = wrap<ConvertWorkerApi>(worker);
+        return await Promise.race([
+          api.convertImageInWorker(blob, targetFormat, quality),
+          failure,
+        ]);
+      } finally {
+        clearTimeout(timeout);
+        worker.onerror = null;
+        worker.onmessageerror = null;
+        worker.terminate();
+      }
+    },
+  };
 }

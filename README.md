@@ -14,15 +14,21 @@
 2. **Increase Size**:
    - Increases image file size to meet strict platform upload minimums without modifying pixel data.
    - Uses native `ArrayBuffer` & `DataView` padding (JPEG COM chunks, PNG tEXt chunks with CRC-32, WebP VP8X/EXIF RIFF chunks).
+   - Repeated WebP enlargement preserves existing EXIF data and consolidates duplicate EXIF chunks from older outputs.
 
 3. **Convert**:
    - Convert seamlessly between JPEG, PNG, WebP, and AVIF.
    - Automatic browser support detection with graceful OffscreenCanvas fallback.
+   - Changing the output format invalidates old results; click Convert again to generate the new format.
+   - Each conversion runs in its own worker, with main-thread fallback on errors or timeout.
 
 4. **Image to PDF**:
    - Drag-and-drop reordering for multi-image PDF generation.
    - Page size selection (A4 or Match Image) and orientation (Portrait or Landscape).
    - Worker-based PDF generation via `pdf-lib` and `comlink`.
+   - JPEG EXIF rotation and mirroring are applied before PDF embedding. Upright JPEGs retain their original encoded data.
+
+Compress, Increase Size, and Convert each display and process their own queue. Clearing a queue affects only the current tool.
 
 ---
 
@@ -69,3 +75,5 @@ npm run build
 ## 🔒 Privacy & Security
 
 All image processing operations (decoding, resizing, chunk insertion, PDF embedding) are performed purely in the user's browser using HTML5 Canvas, Web Workers, and WebAssembly/JavaScript. No image data is sent to external servers.
+
+Image blobs are stored temporarily in IndexedDB. Cleanup runs at startup and every five minutes. Web Locks protect live tabs, including suspended tabs, while allowing records from closed or crashed sessions to be removed. Older records and browsers without Web Locks use the existing 30-minute session-heartbeat fallback.

@@ -13,6 +13,7 @@ import { useDndSensors } from '../hooks/useDndSensors';
 import { formatSizeDelta } from '../utils/formatSizeDelta';
 import { downloadBlob } from '../utils/downloadBlob';
 import { SortableImageCard } from './SortableImageCard';
+import { getQueueItemMode } from '../utils/queueMode';
 
 interface QueueShellProps {
   actionLabel: string;
@@ -25,7 +26,9 @@ export function QueueShell({
   processingLabel,
   controlsSlot,
 }: QueueShellProps) {
-  const queue = useForgeStore((state) => state.queue);
+  const allItems = useForgeStore((state) => state.queue);
+  const activeTab = useForgeStore((state) => state.activeTab);
+  const queue = allItems.filter((item) => getQueueItemMode(item) === activeTab);
   const isProcessingAll = useForgeStore((state) => state.isProcessingAll);
   const processAll = useForgeStore((state) => state.processAll);
   const clearQueue = useForgeStore((state) => state.clearQueue);

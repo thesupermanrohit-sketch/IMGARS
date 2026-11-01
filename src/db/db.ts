@@ -1,58 +1,12 @@
 import Dexie, { type Table } from 'dexie';
+import { ensureDbSession, getDbSessionId, withAbandonedSession } from './session';
+export { ensureDbSession, getDbSessionId, registerDbSession, unregisterDbSession } from './session';
 
 export interface SavedImage {
   id: string;          // Maps to the file item id in Zustand
   originalBlob: Blob;
   processedBlob?: Blob;
   ownerId?: string;
-}
-
-const DB_SESSION_ID =
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const ACTIVE_SESSIONS_KEY = 'imgars-active-db-sessions';
-const SESSION_TTL_MS = 30 * 60 * 1000;
-
-export function getDbSessionId() {
-  return DB_SESSION_ID;
-}
-
-function readActiveSessions(): Record<string, number> {
-  if (typeof localStorage === 'undefined') return { [DB_SESSION_ID]: Date.now() };
-
-  try {
-    const parsed = JSON.parse(localStorage.getItem(ACTIVE_SESSIONS_KEY) || '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return { [DB_SESSION_ID]: Date.now() };
-  }
-}
-
-export function registerDbSession() {
-  if (typeof localStorage === 'undefined') return;
-  const now = Date.now();
-  const sessions = readActiveSessions();
-  for (const [id, lastSeen] of Object.entries(sessions)) {
-    if (now - lastSeen > SESSION_TTL_MS) delete sessions[id];
-  }
-  sessions[DB_SESSION_ID] = now;
-  try {
-    localStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
-  } catch {
-    // Session tracking is best-effort and must not block image processing.
-  }
-}
-
-export function unregisterDbSession() {
-  if (typeof localStorage === 'undefined') return;
-  const sessions = readActiveSessions();
-  delete sessions[DB_SESSION_ID];
-  try {
-    localStorage.setItem(ACTIVE_SESSIONS_KEY, JSON.stringify(sessions));
-  } catch {
-    // Session tracking is best-effort and must not block app shutdown.
-  }
 }
 
 export function getStaleImageIds(storedIds: (string | number)[], activeIds: string[]) {
@@ -87,15 +41,19 @@ export class ImgarsDatabase extends Dexie {
     await this.images.bulkDelete(ids);
   }
 
-  // Remove records left behind by this session's interrupted uploads. Records
-  // owned by other sessions must remain untouched.
-  async cleanupStaleImages(activeIds: string[], ownerId = getDbSessionId()) {
-    registerDbSession();
-    const staleIds = await this.images
-      .filter((image) => image.ownerId === ownerId && !activeIds.includes(image.id))
-      .primaryKeys();
-    if (staleIds.length > 0) {
-      await this.images.bulkDelete(staleIds);
+  async cleanupStaleImages(activeIds: string[]) {
+    await ensureDbSession();
+    const active = new Set(activeIds);
+    const recordsByOwner = new Map<string | undefined, string[]>();
+    // Retain only IDs and ownership while iterating over stored image records.
+    await this.images.toCollection().each((image) => {
+      if (active.has(image.id) || image.ownerId === getDbSessionId()) return;
+      const ids = recordsByOwner.get(image.ownerId) ?? [];
+      ids.push(image.id);
+      recordsByOwner.set(image.ownerId, ids);
+    });
+    for (const [ownerId, ids] of recordsByOwner) {
+      await withAbandonedSession(ownerId, () => this.deleteImages(ids));
     }
   }
 

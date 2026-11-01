@@ -1,7 +1,9 @@
 import type { StateCreator } from 'zustand';
-import { db, getDbSessionId } from '../../db/db';
+import { db, ensureDbSession, getDbSessionId } from '../../db/db';
 import type { OutputFormat } from '../../features/convert/types';
 import type { ForgeState, QueueSlice, FileItem } from '../../types/store';
+import { FORMAT_MIME_MAP } from '../../features/convert/constants';
+import { getQueueItemMode } from '../../utils/queueMode';
 
 const BATCH_CONCURRENCY = 4;
 
@@ -22,6 +24,7 @@ export const createQueueSlice: StateCreator<
     const dbRecords: { id: string; originalBlob: Blob; ownerId: string }[] = [];
 
     try {
+      await ensureDbSession();
       for (const file of files) {
         const id = crypto.randomUUID();
         const ownerId = getDbSessionId();
@@ -75,13 +78,15 @@ export const createQueueSlice: StateCreator<
   },
 
   clearQueue: async () => {
-    const queue = get().queue;
+    const { activeTab } = get();
+    const queue = get().queue.filter((item) => getQueueItemMode(item) === activeTab);
     const ids = queue.map((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       return item.id;
     });
 
-    set({ queue: [] });
+    const removedIds = new Set(ids);
+    set((state) => ({ queue: state.queue.filter((item) => !removedIds.has(item.id)) }));
     if (ids.length > 0) {
       await db.deleteImages(ids);
     }
@@ -112,9 +117,12 @@ export const createQueueSlice: StateCreator<
   },
 
   processFile: async (id) => {
-    const { queue, activeTab } = get();
+    const { queue } = get();
     const item = queue.find((i) => i.id === id);
-    if (!item) return;
+    if (!item || item.status === 'processing') return;
+    const isCurrent = () => get().queue.some((queuedItem) =>
+      queuedItem.id === id && queuedItem.configVersion === item.configVersion
+    );
 
     set((state) => ({
       queue: state.queue.map((i) =>
@@ -130,7 +138,7 @@ export const createQueueSlice: StateCreator<
 
       let processedBlob: Blob;
       let skipReason: string | undefined;
-      const targetMode = item.mode || (activeTab === 'imagePdf' ? 'convert' : activeTab);
+      const targetMode = getQueueItemMode(item);
 
       if (targetMode === 'compress') {
         const { compressImage } = await import('../../features/compress/compressUtil');
@@ -155,10 +163,10 @@ export const createQueueSlice: StateCreator<
       }
 
       // The item may have been removed while conversion was running.
-      if (!get().queue.some((queuedItem) => queuedItem.id === id)) return;
+      if (!isCurrent()) return;
       await db.images.update(id, { processedBlob });
 
-      if (!get().queue.some((queuedItem) => queuedItem.id === id)) return;
+      if (!isCurrent()) return;
 
       set((state) => ({
         queue: state.queue.map((i) =>
@@ -173,6 +181,7 @@ export const createQueueSlice: StateCreator<
         ),
       }));
     } catch (error) {
+      if (!isCurrent()) return;
       console.error(`Error processing file ${item.name}:`, error);
       set((state) => ({
         queue: state.queue.map((i) =>
@@ -189,8 +198,12 @@ export const createQueueSlice: StateCreator<
   },
 
   processAll: async () => {
-    const { queue, processFile } = get();
-    const pendingItems = queue.filter((i) => i.status === 'pending' || i.status === 'failed');
+    const { queue, processFile, activeTab, isProcessingAll } = get();
+    if (isProcessingAll) return;
+    const pendingItems = queue.filter((item) =>
+      getQueueItemMode(item) === activeTab &&
+      (item.status === 'pending' || item.status === 'failed')
+    );
     if (pendingItems.length === 0) return;
 
     set({ isProcessingAll: true });
@@ -207,15 +220,16 @@ export const createQueueSlice: StateCreator<
   },
 
   getDownloadItem: async (id) => {
+    const requestedItem = get().queue.find((item) => item.id === id);
+    if (requestedItem?.status !== 'done') return null;
     const savedData = await db.images.get(id);
     if (!savedData || !savedData.processedBlob) return null;
 
     const item = get().queue.find((i) => i.id === id);
-    if (!item) return null;
+    if (item?.status !== 'done' || item.configVersion !== requestedItem.configVersion) return null;
 
     let fileName = item.name;
-    const { activeTab } = get();
-    const itemMode = item.mode || (activeTab === 'imagePdf' ? 'convert' : activeTab);
+    const itemMode = getQueueItemMode(item);
 
     if (itemMode === 'compress') {
       const lastDotIndex = fileName.lastIndexOf('.');
@@ -232,7 +246,9 @@ export const createQueueSlice: StateCreator<
         fileName = `${fileName}-increased`;
       }
     } else {
-      const targetFormat = item.outputFormat || 'webp';
+      const targetFormat = (Object.keys(FORMAT_MIME_MAP) as OutputFormat[])
+        .find((format) => FORMAT_MIME_MAP[format] === savedData.processedBlob?.type);
+      if (!targetFormat) return null;
       const lastDotIndex = fileName.lastIndexOf('.');
       if (lastDotIndex !== -1) {
         fileName = `${fileName.slice(0, lastDotIndex)}.${targetFormat}`;

@@ -180,6 +180,60 @@ describe('increaseSizeUtil', () => {
   });
 
   describe('WebP padding', () => {
+    function readChunks(bytes: Uint8Array) {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const chunks: { type: string; payload: Uint8Array; start: number }[] = [];
+      let offset = 12;
+      while (offset < bytes.length) {
+        const size = view.getUint32(offset + 4, true);
+        chunks.push({
+          type: String.fromCharCode(...bytes.subarray(offset, offset + 4)),
+          payload: bytes.slice(offset + 8, offset + 8 + size),
+          start: offset,
+        });
+        offset += 8 + size + (size % 2);
+      }
+      expect(offset).toBe(bytes.length);
+      expect(view.getUint32(4, true)).toBe(bytes.length - 8);
+      return chunks;
+    }
+
+    it('preserves image and EXIF data when enlarging the same WebP twice', async () => {
+      const sourceBytes = Uint8Array.from(atob('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA'), (character) => character.charCodeAt(0));
+      const source = new Blob([sourceBytes], { type: 'image/webp' });
+      const first = await increaseImageSize(source, 1);
+      const second = await increaseImageSize(first.blob, 2);
+      const before = readChunks(new Uint8Array(await first.blob.arrayBuffer()));
+      const after = readChunks(new Uint8Array(await second.blob.arrayBuffer()));
+      expect(second.blob.size).toBe(2048);
+      expect(after.map((chunk) => chunk.type)).toEqual(['VP8X', 'VP8 ', 'EXIF']);
+      expect(after[1].payload).toEqual(before[1].payload);
+      expect(after[2].payload.slice(0, before[2].payload.length)).toEqual(before[2].payload);
+    });
+
+    it('consolidates duplicate EXIF chunks from older outputs while preserving trailing metadata', async () => {
+      const first = await increaseImageSize(new Blob([createMinimalWebP().buffer as ArrayBuffer], { type: 'image/webp' }), 1);
+      const original = new Uint8Array(await first.blob.arrayBuffer());
+      const exif = readChunks(original).find((chunk) => chunk.type === 'EXIF')!;
+      // Make the existing EXIF payload odd-sized, retaining its RIFF pad byte.
+      new DataView(original.buffer).setUint32(exif.start + 4, exif.payload.length - 1, true);
+      original[original.length - 1] = 0;
+      const duplicate = original.slice(exif.start);
+      const xmp = new Uint8Array([0x58, 0x4d, 0x50, 0x20, 2, 0, 0, 0, 65, 66]);
+      const input = new Uint8Array(original.length + duplicate.length + xmp.length);
+      input.set(original);
+      input.set(duplicate, original.length);
+      input.set(xmp, original.length + duplicate.length);
+      new DataView(input.buffer).setUint32(4, input.length - 8, true);
+      input[20] |= 0x04; // XMP flag
+      const result = await increaseImageSize(new Blob([input], { type: 'image/webp' }), 3);
+      const chunks = readChunks(new Uint8Array(await result.blob.arrayBuffer()));
+      expect(chunks.map((chunk) => chunk.type)).toEqual(['VP8X', 'VP8 ', 'EXIF', 'XMP ']);
+      expect(chunks[2].payload.slice(0, exif.payload.length - 1)).toEqual(exif.payload.slice(0, -1));
+      expect(chunks[3].payload).toEqual(new Uint8Array([65, 66]));
+      expect(result.blob.size).toBe(3072);
+    });
+
     it('increases WebP file size to exact target size with VP8X and EXIF', async () => {
       const originalBytes = createMinimalWebP();
       const originalBlob = new Blob([originalBytes.buffer as ArrayBuffer], { type: 'image/webp' });

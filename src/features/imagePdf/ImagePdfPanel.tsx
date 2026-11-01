@@ -106,6 +106,7 @@ export function ImagePdfPanel() {
   const sensors = useDndSensors();
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };

@@ -2,6 +2,7 @@
 
 import { expose } from 'comlink';
 import { PDFDocument, rgb } from 'pdf-lib';
+import { getJpegOrientation } from './jpegOrientation';
 import type {
   ImagePdfResult,
   ImagePdfWorkerApi,
@@ -21,7 +22,7 @@ async function decodeImage(file: File): Promise<ImageBitmap> {
   }
 
   try {
-    return await createImageBitmap(file);
+    return await createImageBitmap(file, { imageOrientation: 'from-image' });
   } catch {
     throw new Error(`Could not decode ${file.name}. The image may be corrupted or unsupported.`);
   }
@@ -119,11 +120,17 @@ async function generatePdf(
       let embeddedImage;
       if (image.file.type === 'image/jpeg') {
         const sourceBytes = await image.file.arrayBuffer();
-        try {
-          embeddedImage = await pdfDoc.embedJpg(sourceBytes);
-        } catch {
-          const fallbackBytes = await fileToJpegBytes(image.file, bitmap);
-          embeddedImage = await pdfDoc.embedJpg(fallbackBytes);
+        if (getJpegOrientation(sourceBytes) !== 1) {
+          // pdf-lib embeds raw JPEG pixels without applying EXIF. Rasterize the
+          // already-oriented bitmap so rotation and mirroring match the preview.
+          embeddedImage = await pdfDoc.embedJpg(await fileToJpegBytes(image.file, bitmap));
+        } else {
+          try {
+            embeddedImage = await pdfDoc.embedJpg(sourceBytes);
+          } catch {
+            const fallbackBytes = await fileToJpegBytes(image.file, bitmap);
+            embeddedImage = await pdfDoc.embedJpg(fallbackBytes);
+          }
         }
       } else if (image.file.type === 'image/png') {
         const sourceBytes = await image.file.arrayBuffer();
